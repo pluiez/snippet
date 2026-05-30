@@ -1,0 +1,231 @@
+# 交接文档 — Snippet 项目
+
+> 写给下一个 AI coding agent。
+> 截止日期：2026-05-30。
+
+---
+
+## 一句话概述
+
+Snippet 是一个 Windows-first（macOS later）Tauri v2 桌面应用：全局热键 → palette → 搜索模板 → 填变量 → 写剪贴板（可选自动粘贴）。**Phase 2（核心功能，Slice 0-7）已全部完成并验证。Phase 3 工作流 A（动画与过渡）已完成**。下一步是工作流 B（错误处理与边界态）和工作流 C（测试与发布）。
+
+---
+
+## 当前状态速查
+
+| 项目 | 状态 |
+|---|---|
+| Git 分支 | `main` |
+| 最新 commit | `1face5f feat: add animations and transitions (Phase 3 Workflow A)` |
+| Tags | `slice-7a-onboarding` / `slice-7b-hotkey` / `slice-7c-theme` |
+| 编译 | `pnpm bindings` (cargo test) 通过；`pnpm tauri dev` 可正常运行 |
+| Phase 1 | Slice 0 + 0.5 ✅ |
+| Phase 2 | Slice 1-7 (7a/7b/7c) ✅ 全部验证 |
+| Phase 3 工作流 A | 动画与过渡 ✅ |
+| Phase 3 工作流 B | 错误处理与边界态 — **未开始** |
+| Phase 3 工作流 C | 测试与发布 — **未开始** |
+| 未提交的文件 | `TASKS.md`（Slice 7 拆分描述更新）— 可随下次 commit 一起提交 |
+
+---
+
+## 文档地图
+
+按优先级阅读：
+
+1. **`CLAUDE.md`** — 项目 AI agent 指南（dev 命令、架构约束、关键约定）。**先看这个。**
+2. **`PROGRESS.md`** — 每个 slice 的详细落地记录：实现了什么、验证场景、已知坑、patch 历史。信息密度最高。
+3. **`SPEC.md`** — 产品 spec（中文）。UI 行为、数据契约、交互流程、§13 核心不变量。**SPEC 是事实标准，其它文档跟它冲突时以 SPEC 为准。**
+4. **`ARCHITECTURE.md`** — 实现骨架：技术栈、进程边界、模块域、§6 关键时序约束。
+5. **`TASKS.md`** — 切片交付计划。Phase 3 的三个工作流（A/B/C）定义在此。
+
+---
+
+## 关键约束（必须遵守）
+
+1. **Commit message 不许加 `Co-Authored-By` trailer** — 用户明确要求，绝对不能加。
+2. **语言**：spec 和 UI 文字都是中文；代码注释/变量名英文。
+3. **平台**：开发在 Windows native（`C:\dev\snippet`）。WSL 只做编辑（路径 `/mnt/c/dev/snippet/`）。`pnpm tauri dev` 从 PowerShell 跑。
+4. **Backend 是 source of truth** — 前端是纯 view + control，不碰文件系统或 OS API。
+5. **类型契约走 ts-rs** — 改了 Rust 类型（`#[derive(TS)]`）后要跑 `pnpm bindings` 重新生成。
+6. **HWND 第一步同步捕获** — 热键 callback 第一行必须是 `GetForegroundWindow()`。
+7. **两阶段启动** — `init_bootstrap`（Phase A，始终跑）→ `init_full_state`（Phase B，条件跑）。Onboarding 期间 AppState 未 manage。
+8. **变量 GUID 稳定** — body 里存 `{<uuid>}`，不是 displayName。
+
+---
+
+## 代码结构
+
+### 后端（`src-tauri/src/`）
+
+| 模块 | 职责 |
+|---|---|
+| `lib.rs` | Tauri setup（两阶段启动）、close/tray/single-instance handler |
+| `schema.rs` | 所有数据 schema（Template/Variable/Settings/Bootstrap/ColorMaps/LastUsed） |
+| `state.rs` | `AppState`（Mutex-based in-memory store） |
+| `commands.rs` | 所有 IPC 命令 |
+| `paths.rs` | 数据目录路径解析 |
+| `storage.rs` | 文件读写、atomic write、模板扫描、ensure 目录结构 |
+| `palette.rs` | hotkey handler + show/hide palette + show_main_window + 窗口互斥 |
+| `search.rs` | SPEC §7 搜索实现（pinyin + fuzzy + 加权） |
+| `render.rs` | 模板渲染（占位符替换 + body_for_search） |
+| `color.rs` | OKLCh 生成 + 对比度校验 + GC |
+| `hotkey.rs` | parse_hotkey + re_register_hotkey（12 个 unit test） |
+| `onboarding.rs` | classify_path + needs_onboarding（6 个 unit test） |
+| `auto_paste.rs` | Windows SetForegroundWindow + enigo Ctrl+V |
+
+### 前端（`src/`）
+
+| 文件 | 职责 |
+|---|---|
+| `main.tsx` | 按窗口 label 路由（main/palette/onboarding）+ Provider 嵌套 |
+| `App.tsx` | 主窗口 view switcher（list/edit/fill/colors/settings）+ nav + AnimatePresence 视图过渡 |
+| `Palette.tsx` | 独立无边框窗口，搜索+列表+preview+fill/edit 堆叠 + 淡入淡出 + 视图 cross-fade |
+| `Onboarding.tsx` | 首次启动三选一流程 |
+| `Settings.tsx` | 完整设置页（hotkey/autoPaste/dataFolder/theme） |
+| `TemplateList.tsx` / `TemplateEditor.tsx` / `TemplateFillDialog.tsx` | CRUD + 填充 |
+| `ColorManagement.tsx` | 两 tab 颜色管理 |
+| `VariableEditor.tsx` / `VariableList.tsx` | 变量编辑卡片 |
+| `HotkeyInput.tsx` | 热键捕获输入组件（pause/resume + code-based） |
+| `TagInput.tsx` / `TagPill.tsx` / `OptionsInput.tsx` | chip-style 输入 |
+| `BodyWithVariableChips.tsx` | 模板 body 预览（变量色块） |
+| `ConfirmDialog.tsx` | 通用确认弹窗（backdrop fade + card scale 动画） |
+| `Toast.tsx` | 通用 toast（淡入 + 退场前淡出） |
+| `lib/motion.ts` | 共享动画常量（DURATION / EASE） |
+| `lib/theme.tsx` | ThemeApplier 纯 effect |
+| `lib/colors.tsx` | ColorMapsProvider context |
+| `lib/settings.tsx` | SettingsProvider context |
+| `lib/body.ts` | bodyToDisplay / bodyToStorage 双向转换 |
+| `lib/render.ts` | JS 镜像 render（preview 用） |
+| `lib/fill.ts` | mergeFillValues helper |
+
+---
+
+## 工作流 A 实施总结（已完成）
+
+已通过 commit `1face5f` 落地。全部前端改动，零后端变化。
+
+| 动画项 | 实现方式 | 关键文件 |
+|---|---|---|
+| Palette 淡入/淡出 | `motion.div` + `visible` state + `requestHide()` 延迟隐藏 | `Palette.tsx` |
+| Palette 视图过渡 | `AnimatePresence mode="wait"` + directional cross-fade (x:20→0→-20) | `Palette.tsx` |
+| Main window 视图过渡 | `AnimatePresence mode="wait"` + opacity fade（嵌套：外层sidebar/edit/fill，内层list/colors/settings） | `App.tsx` |
+| Toast 淡入淡出 | `motion.div` initial/animate + `exiting` state 触发退场 | `Toast.tsx` |
+| ConfirmDialog 动画 | backdrop opacity + card scale 0.95→1 + `AnimatePresence` 包裹 | `ConfirmDialog.tsx`、`TemplateList.tsx`、`Settings.tsx` |
+| 发光描边脉冲 | CSS `@keyframes glow-pulse` 2 次脉冲 + `onAnimationEnd` 清除 | `index.css`、`App.tsx` |
+| 颜色变化过渡 | `transition-colors duration-200` | `TagPill.tsx`、`BodyWithVariableChips.tsx`、`ColorManagement.tsx`、`TemplateFillDialog.tsx` |
+
+**已知限制**：
+- Palette 淡入时窗口背景色在 CSS opacity 动画前的一帧会闪现（`transparent: true` 未启用）——视觉上基本不可察觉
+- 视图过渡用 directional cross-fade 而非 layoutId morph（DOM 结构完全不同，无共享元素）
+
+---
+
+## Phase 3 — 下一步工作
+
+建议顺序 B → C：
+
+### 工作流 B — 错误处理与边界态（未开始）
+
+- 数据文件夹无写权限引导
+- 单个模板 JSON 损坏隔离与提示
+- 全局热键被占用的提示与处理
+- WebView2 缺失引导安装
+- autoPaste 失败降级 toast
+- Onboarding 导入路径格式不匹配的友好提示
+- 所有空状态 UI
+- 编辑器 dirty 检测 + 二次确认（取消大量改动前提示）
+
+### 工作流 C — 测试与发布（未开始）
+
+- SPEC §13 全部核心不变量单元测试
+- 关键 IPC 集成测试
+- pinyin / fuzzy 回归测试
+- Windows 安装包打包（.msi）
+- 代码签名
+- 手动 smoke test 全流程
+
+---
+
+## 未完成的文档债
+
+| 项目 | 说明 |
+|---|---|
+| **TASKS.md Slice 7 拆分** | E1 决议：原 Slice 7 已拆为 7a/7b/7c 并分别交付。TASKS.md 已有未提交的改动（working tree 中 `M TASKS.md`），内容是将老的一整段 Slice 7 改写为三个子切片描述。可随下次 commit 一起提交。 |
+| **Spec 决议日志 B/C/D 系列** | PROGRESS.md 末尾列了 B 系列（孤儿变量/staticDefault 失效等）、C 系列（必填+剪贴板死锁/watcher 并发等）、D 系列（措辞/测试稳定性）多条未决 spec 偏差。大部分 B 系列已在 Slice 3 代码中解决但措辞未写回 SPEC.md。C/D 系列属 Phase 3 工作流 B/C 范围，做的时候再决。 |
+| **ARCHITECTURE.md 两阶段启动** | Slice 7a 引入了两阶段启动，应在 ARCHITECTURE.md §7 补一行说明。可选做。 |
+
+---
+
+## 开发环境快速启动
+
+```bash
+# WSL 编辑路径
+cd /mnt/c/dev/snippet
+
+# Windows PowerShell 运行（从 C:\dev\snippet）
+pnpm install          # 一次性
+pnpm bindings         # 编译 Rust + 生成 TS 类型（= cd src-tauri && cargo test）
+pnpm tauri dev        # 开发服务器 + Rust 热重建
+pnpm tauri build      # 生产构建
+```
+
+首次启动前确保 `%APPDATA%\Snippet\bootstrap.json` 存在且 `onboardingComplete: true`（否则会弹 onboarding 窗口）。清空 `%APPDATA%\Snippet\` 可触发 onboarding 流程测试。
+
+---
+
+## 技术栈版本
+
+- Tauri 2.x（`tauri = "2"`）
+- React 19 + TypeScript
+- Tailwind CSS v4（`@import "tailwindcss"`，`@custom-variant dark`）
+- Vite
+- framer-motion ^12（动画库，工作流 A 开始使用）
+- ts-rs（双端类型同步）
+- 关键插件：`tauri-plugin-global-shortcut` / `tauri-plugin-dialog` / `tauri-plugin-clipboard-manager` / `tauri-plugin-single-instance`
+- Rust 关键 crate：`nucleo-matcher`（fuzzy）、`pinyin`（中文）、`enigo`（键盘模拟）、`rand`（颜色生成）、`chrono`
+
+---
+
+## 容易踩的坑（前人经验）
+
+1. **HotkeyInput 自抢先**：app 已注册的热键在 HotkeyInput 捕获态下仍被 OS 优先 dispatch。已通过 `pause_hotkey`/`resume_hotkey` IPC 解决。
+2. **AppState 延迟 manage**：onboarding 期间所有业务 IPC 拿不到 State。所有新 IPC 如果可能在 onboarding 期间被调用，要用 `try_state` 保护。
+3. **`e.code` vs `e.key`**：热键捕获用 `e.code`（物理键，layout 中立），不用 `e.key`（被输入法/布局翻译后的字符）。
+4. **render 双实现**：Rust `render.rs` 和 JS `lib/render.ts` 是同逻辑的镜像实现，改占位符规则要两边同步。
+5. **颜色 map 双文件**：`variableColorMap` 和 `tagColorMap` 是独立的两个文件，GC 也独立跑。同名 tag 和变量不会冲突。
+6. **atomic_write**：所有文件持久化走 tmp → rename，不直接覆写。
+7. **Tailwind v4 dark 语法**：用 `@custom-variant dark (&:where(.dark, .dark *));`，不是 v3 的 `darkMode: 'class'` JS 配置。
+8. **Windows 系统级热键**：Win+L / Ctrl+Alt+Del 等被 OS 拦截，webview 的 keydown 收不到、global-shortcut 注册也会失败。无法在 app 内修复，是 OS 限制。
+9. **SetForegroundWindow**：Windows 前台保护机制下不是 100% 成功。某些 app（Sublime Text、游戏 launcher）忽略 SendInput 模拟的 Ctrl+V。enigo 报成功但目标 app 没收到——已知 OS 级限制。
+10. **serde 兼容**：Bootstrap 加新字段时用 `#[serde(default)]` 让老文件能反序列化。`onboarding_complete` 用专门的 `default_onboarding_complete_for_legacy` 函数返回 `true`，避免让老用户重做 onboarding。
+11. **Palette 隐藏时序**：`requestHide()` 先 `setVisible(false)` 触发淡出动画，200ms 后才调 `invoke("hide_palette")`。快速连续按键由 `hideTimeoutRef` 去重。直接调 `invoke("hide_palette")` 会跳过淡出动画。
+12. **AnimatePresence 需要 key**：每个条件渲染的 `motion.div` 需要唯一 `key` prop 才能正确触发 exit 动画。漏了 key 会导致卸载时无动画。
+
+---
+
+## SPEC §13 核心不变量清单（Phase 3 工作流 C 需补测试）
+
+| # | 内容 | 当前覆盖 |
+|---|---|---|
+| 1 | 变量 GUID 稳定 | 代码保证，无 unit test |
+| 2 | 删除变量清理 body | 代码保证，无 unit test |
+| 3 | enum last-used 失效回退 | 代码保证，无 unit test |
+| 4 | 剪贴板互斥 | 代码保证，无 unit test |
+| 5 | GC 不误删 | 代码保证，无 unit test |
+| 6 | GC 删孤儿 | 代码保证，无 unit test |
+| 7 | 搜索权重 1.0/0.8/0.3 | hardcode，无 unit test |
+| 8 | 排序稳定 | 代码保证，无 unit test |
+| 9 | 窗口互斥 | 代码保证，无 unit test |
+| 10 | 颜色对比度 ≥ 4.5:1 | 生成逻辑保证，无 unit test |
+| 11 | GC 收敛 | 启动+关闭循环保证 |
+| 12 | pinyin 多音字 | 依赖 pinyin crate 默认音 |
+
+注：hotkey.rs 有 12 个 parser unit test；onboarding.rs 有 6 个 classify_path unit test。这些是非 §13 的功能测试。
+
+---
+
+## 总结
+
+项目核心功能已完整，动画打磨层已落地。剩余 Phase 3 工作流 B（错误处理）和 C（测试与发布）。两个工作流之间相对独立，可根据优先级灵活安排。
+
+祝接手顺利。

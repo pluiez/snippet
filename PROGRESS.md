@@ -611,6 +611,38 @@
 
 ## Phase 3 — 打磨与发布
 
+### 工作流 A — 动画与过渡 ✅
+
+收尾日期：2026-05-30。
+
+**已落地**：
+
+- 共享动画常量文件 `src/lib/motion.ts`（DURATION fast/normal/slow + EASE out/in/inOut）
+- framer-motion ^12 正式投入使用（此前已安装但零 import）
+- **Palette 淡入/淡出**：根 div 用 `motion.div` + `visible` state 控制 opacity；`requestHide()` 先淡出再 `invoke("hide_palette")`，`hideTimeoutRef` 防竞态
+- **Palette 视图切换过渡**（search → fill → edit）：`AnimatePresence mode="wait"` + directional cross-fade（x: 20→0 入场，0→-20 退场）
+- **Main window 视图切换过渡**：外层 `AnimatePresence mode="wait"` 包裹 sidebar/edit/fill 三大区域 opacity fade；内层嵌套 `AnimatePresence` 包裹 sidebar 内容区（list/colors/settings）
+- **Toast 淡入淡出**：`motion.div` initial opacity 0 → animate 1；退场前 `exiting` state 触发淡出
+- **ConfirmDialog 动画**：backdrop `motion.div` opacity fade + 卡片 scale 0.95→1 + `AnimatePresence` 包裹（TemplateList、Settings）
+- **主窗口发光描边脉冲**：CSS `@keyframes glow-pulse` 在 `index.css`，替代静态 inset shadow；脉冲 2 次（0.6s × 2 = 1.2s），`onAnimationEnd` 清除 glowing state
+- **颜色变化过渡**：TagPill、BodyWithVariableChips variable chip、ColorManagement 色块、TemplateFillDialog 变量色点均加 `transition-colors duration-200`
+
+**改动文件**：1 新建（`src/lib/motion.ts`）+ 11 修改（App.tsx、Palette.tsx、Toast.tsx、ConfirmDialog.tsx、TemplateList.tsx、Settings.tsx、index.css、TagPill.tsx、BodyWithVariableChips.tsx、ColorManagement.tsx、TemplateFillDialog.tsx）。零后端改动。
+
+**待用户验证**：需在 Windows `pnpm tauri dev` 下手动验证全部动画效果。
+
+**已知限制 / 备注**：
+
+- Palette 淡入时因 `transparent: true` 未启用，窗口背景色在 CSS opacity 动画前的一帧会闪现——因为每次 show 都重置到 search 视图，视觉上基本不可察觉
+- 视图过渡用 directional cross-fade 而非 `layoutId` morph：SearchView 和 TemplateFillDialog DOM 结构完全不同，没有共享元素可 morph
+- `requestHide()` 延迟 = `DURATION.normal * 1000` (200ms)，期间连续按热键由 `hideTimeoutRef` 去重
+
+### 工作流 B — 错误处理与边界态
+
+未开始。
+
+### 工作流 C — 测试与发布
+
 未开始。
 
 ---

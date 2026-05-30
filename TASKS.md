@@ -242,24 +242,82 @@
 
 ### Slice 7 — Onboarding + 完整设置页
 
-**目标**：首次启动体验完整；所有设置项可在 UI 调整。
+> 实施时拆为 7a / 7b / 7c 三个独立可验收的子切片（E1 决议）。
+
+#### Slice 7a — Onboarding 流程 + dataFolderPath 设置入口
+
+**目标**：首次启动引导用户选择数据文件夹；设置页可改路径。
 
 **范围**：
 
-- Onboarding 窗口与流程，实现 SPEC 第 11 节的三选一
-- Onboarding 相关 IPC 命令族（数据文件夹状态检测、初始化、导入与格式校验）
-- 完整设置页 UI，覆盖 SPEC 第 12 节列出的所有设置项
-- 全局热键的捕获组件 + 冲突校验 + 即时生效
-- 主题切换的实现（含 system 模式跟随 OS 偏好）
-- 设置变更立即持久化并通知前端
+- 两阶段启动改造：`init_bootstrap`（Phase A，始终跑）→ `init_full_state`（Phase B，条件跑）；Onboarding 期间 AppState 未 manage
+- Bootstrap schema 增 `onboarding_complete: bool` 字段
+- 新 onboarding Tauri 窗口（独立 label，路由分支）
+- 三选一 UI：使用默认路径 / 指定路径新建 / 从已有路径导入
+- 路径校验：`classify_path` 判定 DoesNotExist / Empty / ValidSnippet / OccupiedByOther
+- 冲突拒绝：新建选到非空非 Snippet 目录 → inline 错误
+- `tauri-plugin-dialog` 文件夹选择器
+- 设置页临时扩展 dataFolderPath 行（显示 + 更改按钮 → 重启生效）
+- Onboarding 窗口 X 掉 = 退出 app
 
 **验收**：
 
-- 干净环境启动 → onboarding 出现
-- 三种选项分别走通：默认路径新建、自定义路径新建、从已有路径导入
-- 改热键 → 立即生效（按新键能唤起 palette）
-- 改主题 → UI 立即切换
-- 重启后所有设置保持
+- 清空 `%APPDATA%\Snippet\` → 启动 → onboarding 窗口出现
+- 三种选项分别走通
+- 导入非 Snippet 路径 → 拒绝；新建到非空路径 → 拒绝
+- 完成 onboarding 后主窗口正常、Slice 1-6 功能不破坏
+- 旧 bootstrap.json（无 `onboardingComplete` 字段）→ 启动不弹 onboarding
+
+**不包含**：热键自定义 UI、主题切换。
+
+---
+
+#### Slice 7b — 完整设置页（hotkey + autoPaste 整合）
+
+**目标**：设置页完整可用；热键可自定义并即时生效。
+
+**范围**：
+
+- `parse_hotkey` 解析器（修饰键 + 普通键字符串 → `Shortcut`）+ 12 个 unit test
+- `re_register_hotkey` 卸老注新 + 失败回滚
+- 事务式 `save_settings`：re_register → atomic_write → update state → emit
+- `HotkeyInput` 组件（`KeyboardEvent.code` 捕获，pause/resume 防自抢先，Esc 取消）
+- 设置页重构为 section-based（热键 / autoPaste / dataFolder）
+- 保存失败 → inline 错误 + 旧值仍生效
+
+**验收**：
+
+- 改热键 → 保存 → 新键即时唤起 palette，旧键无反应
+- 重启后持久
+- 冲突注册（被其它 app 占用的组合）→ 保存失败 + 错误提示 + 旧键仍工作
+- HotkeyInput：Esc 取消、Enter 不绑、单字母无修饰键拒绝、F1 单独允许
+
+**不包含**：主题切换。
+
+---
+
+#### Slice 7c — 主题切换（light/dark/system + 全组件 dark 适配）
+
+**目标**：支持浅色/深色/跟随系统三种主题模式；全部 UI 组件适配 dark mode。
+
+**范围**：
+
+- Tailwind v4 `@custom-variant dark` 配置
+- `ThemeApplier` 纯 effect 组件（控制 `<html class="dark">`）
+- system 模式：`matchMedia('(prefers-color-scheme: dark)')` 监听
+- 每窗口独立 mount ThemeApplier（main/palette 读 settings，onboarding 默认 system）
+- 设置页加 theme section（三选一 radio：浅色/深色/跟随系统）
+- 16+ 组件全部加 `dark:` variant（遵循统一设计 token 表）
+- 变量/tag 自定义色在 dark 模式下保持原色不变
+
+**验收**：
+
+- system 模式：OS dark mode 切换 → 应用即时响应
+- 选"深色" → 所有窗口即时切换
+- 选"浅色" → 同上
+- dark 下各窗口/流程视觉均可读（amber banner、error、toast、palette 等）
+- 多窗口同步切换
+- 重启后主题持久
 
 **不包含**：主题颜色对比度自动适配。
 
@@ -307,7 +365,7 @@
 ```
 Slice 0 ─ Slice 0.5 ─ Slice 1 ─ Slice 2 ─ Slice 3
                                      │       │
-                                     └───────┴── Slice 4 ─ Slice 5 ─ Slice 6 ─ Slice 7 ─ Phase 3
+                                     └───────┴── Slice 4 ─ Slice 5 ─ Slice 6 ─ Slice 7a ─ 7b ─ 7c ─ Phase 3
 ```
 
 强依赖：
@@ -317,29 +375,34 @@ Slice 0 ─ Slice 0.5 ─ Slice 1 ─ Slice 2 ─ Slice 3
 - Slice 2 依赖 Slice 1
 - Slice 3 依赖 Slice 2（变量类型系统）
 - Slice 4 依赖 Slice 2 与 Slice 3
-- Slice 5、6、7 都依赖 Slice 4
+- Slice 5、6 都依赖 Slice 4
+- Slice 7a 依赖 Slice 6（两阶段启动改造）
+- Slice 7b 依赖 Slice 7a（settings 页结构）
+- Slice 7c 依赖 Slice 7b（ThemeApplier 需要 SettingsProvider）
 
 可并行：
 
 - Slice 5（颜色）和 Slice 6（输出）可同时开发
-- 工作流 A、B 可在 Slice 4 完成后开始
+- 工作流 A、B、C 可在 Phase 2 完成后并行推进
 
 ---
 
 ## 工作量预估（仅供参考）
 
-| 切片 | 估计 |
-|---|---|
-| Slice 0 | 0.5 天 |
-| Slice 0.5 | 0.5 天 |
-| Slice 1 | 1 天 |
-| Slice 2 | 2 天 |
-| Slice 3 | 2 天 |
-| Slice 4 | 2 天 |
-| Slice 5 | 1.5 天 |
-| Slice 6 | 1 天 |
-| Slice 7 | 1.5 天 |
-| Phase 3 | 3–5 天 |
+| 切片 | 估计 | 实际 |
+|---|---|---|
+| Slice 0 | 0.5 天 | ✅ |
+| Slice 0.5 | 0.5 天 | ✅ |
+| Slice 1 | 1 天 | ✅ |
+| Slice 2 | 2 天 | ✅ |
+| Slice 3 | 2 天 | ✅ |
+| Slice 4 | 2 天 | ✅ |
+| Slice 5 | 1.5 天 | ✅ |
+| Slice 6 | 1 天 | ✅ |
+| Slice 7a | 0.5 天 | ✅ |
+| Slice 7b | 0.5 天 | ✅ |
+| Slice 7c | 0.5 天 | ✅ |
+| Phase 3 | 3–5 天 | 未开始 |
 
 总计约 2 周全职。个人项目按碎片时间会拉长。AI coding 工具实际耗时取决于交互模式。
 
