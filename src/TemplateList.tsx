@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { AnimatePresence } from "framer-motion";
 import { Copy, Pencil, Pin, Play, Plus, Trash2 } from "lucide-react";
 import type { TemplateSummary } from "./lib/bindings/TemplateSummary";
 import { ConfirmDialog } from "./ConfirmDialog";
@@ -139,19 +140,21 @@ export function TemplateList({
         </div>
       </section>
 
-      {confirmDelete && (
-        <ConfirmDialog
-          title="删除模板"
-          message={`确定要删除"${confirmDelete.displayName || "（未命名）"}"？此操作不可撤销。`}
-          confirmText="删除"
-          destructive
-          onConfirm={async () => {
-            await onDelete(confirmDelete.id);
-            setConfirmDelete(null);
-          }}
-          onCancel={() => setConfirmDelete(null)}
-        />
-      )}
+      <AnimatePresence>
+        {confirmDelete && (
+          <ConfirmDialog
+            title="删除模板"
+            message={`确定要删除"${confirmDelete.displayName || "（未命名）"}"？此操作不可撤销。`}
+            confirmText="删除"
+            destructive
+            onConfirm={async () => {
+              await onDelete(confirmDelete.id);
+              setConfirmDelete(null);
+            }}
+            onCancel={() => setConfirmDelete(null)}
+          />
+        )}
+      </AnimatePresence>
     </>
   );
 }

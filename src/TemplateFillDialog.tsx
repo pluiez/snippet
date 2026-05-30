@@ -167,7 +167,7 @@ function VariableField({
         {/* SPEC §4.5: label color matches the variable color. Small dot avoids
             low contrast issues with colored text on white. */}
         <span
-          className="inline-block h-2 w-2 shrink-0 rounded-full"
+          className="inline-block h-2 w-2 shrink-0 rounded-full transition-colors duration-200"
           style={{ backgroundColor: color }}
         />
         <span>{variable.displayName}</span>

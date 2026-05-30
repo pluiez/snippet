@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useState } from "react";
 import { invoke } from "@tauri-apps/api/core";
 import { open } from "@tauri-apps/plugin-dialog";
+import { AnimatePresence } from "framer-motion";
 import { AlertTriangle, FolderOpen, Save, X } from "lucide-react";
 import { useSettings } from "./lib/settings";
 import { ConfirmDialog } from "./ConfirmDialog";
@@ -235,15 +236,17 @@ export function Settings({ onClose }: Props) {
         </div>
       </div>
 
-      {pendingFolderChange && (
-        <ConfirmDialog
-          title="更改数据文件夹"
-          message={`将把路径切换到:\n${pendingFolderChange}\n\n保存后需要重启应用。`}
-          confirmText="保存"
-          onConfirm={onConfirmFolderChange}
-          onCancel={() => setPendingFolderChange(null)}
-        />
-      )}
+      <AnimatePresence>
+        {pendingFolderChange && (
+          <ConfirmDialog
+            title="更改数据文件夹"
+            message={`将把路径切换到:\n${pendingFolderChange}\n\n保存后需要重启应用。`}
+            confirmText="保存"
+            onConfirm={onConfirmFolderChange}
+            onCancel={() => setPendingFolderChange(null)}
+          />
+        )}
+      </AnimatePresence>
     </section>
   );
 }

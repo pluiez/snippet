@@ -48,7 +48,7 @@ export function BodyWithVariableChips({ body, variables, className }: Props) {
           <span
             key={i}
             style={{ backgroundColor: variableColor(p.name, maps) }}
-            className="inline-block rounded-sm px-1.5 align-baseline font-mono text-xs text-white"
+            className="inline-block rounded-sm px-1.5 align-baseline font-mono text-xs text-white transition-colors duration-200"
           >
             {p.name}
           </span>

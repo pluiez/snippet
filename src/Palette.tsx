@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { invoke } from "@tauri-apps/api/core";
 import { listen } from "@tauri-apps/api/event";
+import { AnimatePresence, motion } from "framer-motion";
 import { Pin, Search } from "lucide-react";
 import type { ApplyOutcome } from "./lib/bindings/ApplyOutcome";
 import type { FillDialogState } from "./lib/bindings/FillDialogState";
@@ -12,6 +13,7 @@ import { TagPill } from "./TagPill";
 import { Toast } from "./Toast";
 import { BodyWithVariableChips } from "./BodyWithVariableChips";
 import { mergeFillValues } from "./lib/fill";
+import { DURATION, EASE } from "./lib/motion";
 
 type ReturnTo = {
   type: "fill";
@@ -35,17 +37,35 @@ export function Palette() {
   const [selectedIdx, setSelectedIdx] = useState(0);
   const [previewTemplate, setPreviewTemplate] = useState<Template | null>(null);
   const [toast, setToast] = useState<{ msg: string; key: number } | null>(null);
+  const [visible, setVisible] = useState(false);
   const previewRef = useRef<HTMLDivElement | null>(null);
   const inputRef = useRef<HTMLInputElement | null>(null);
+  const hideTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const selected = results[selectedIdx] ?? null;
 
+  // Fade out then invoke the OS-level hide.
+  const requestHide = useCallback(() => {
+    if (hideTimeoutRef.current) clearTimeout(hideTimeoutRef.current);
+    setVisible(false);
+    hideTimeoutRef.current = setTimeout(() => {
+      invoke("hide_palette").catch(console.error);
+      hideTimeoutRef.current = null;
+    }, DURATION.normal * 1000);
+  }, []);
+
   useEffect(() => {
     const promise = listen("palette-shown", () => {
+      // Cancel any pending hide (e.g. rapid hotkey press).
+      if (hideTimeoutRef.current) {
+        clearTimeout(hideTimeoutRef.current);
+        hideTimeoutRef.current = null;
+      }
       setView({ type: "search" });
       setQuery("");
       setSelectedIdx(0);
       setToast(null);
+      setVisible(true);
       setTimeout(() => inputRef.current?.focus(), 0);
     });
     return () => {
@@ -88,7 +108,7 @@ export function Palette() {
   // show a toast for ~1.5s before hiding the palette. Otherwise hide immediately.
   const finalizeApply = async (outcome: ApplyOutcome, name: string) => {
     if (outcome.pasted) {
-      await invoke("hide_palette");
+      requestHide();
       return;
     }
     if (outcome.reason === "failed") {
@@ -97,11 +117,11 @@ export function Palette() {
         key: Date.now(),
       });
       setTimeout(() => {
-        invoke("hide_palette").catch(console.error);
+        requestHide();
       }, TOAST_BEFORE_HIDE_MS);
     } else {
       // autoPaste disabled — just hide; user will switch app and paste manually.
-      await invoke("hide_palette");
+      requestHide();
     }
   };
 
@@ -121,9 +141,9 @@ export function Palette() {
     }
   }, [selected]);
 
-  const handleEsc = useCallback(async () => {
-    await invoke("hide_palette");
-  }, []);
+  const handleEsc = useCallback(() => {
+    requestHide();
+  }, [requestHide]);
 
   const handleKeyDown = (e: React.KeyboardEvent) => {
     if (view.type !== "search") return;
@@ -176,64 +196,92 @@ export function Palette() {
   };
 
   return (
-    <div
+    <motion.div
+      initial={{ opacity: 0 }}
+      animate={{ opacity: visible ? 1 : 0 }}
+      transition={{ duration: DURATION.normal, ease: EASE.out }}
       className="flex h-screen flex-col bg-white font-sans dark:bg-zinc-900"
       onKeyDown={handleKeyDown}
     >
       <div className="h-1.5 shrink-0 bg-zinc-100 dark:bg-zinc-800" data-tauri-drag-region />
 
-      {view.type === "search" && (
-        <SearchView
-          query={query}
-          setQuery={setQuery}
-          results={results}
-          selectedIdx={selectedIdx}
-          previewTemplate={previewTemplate}
-          previewRef={previewRef}
-          inputRef={inputRef}
-          onItemClick={(idx) => setSelectedIdx(idx)}
-          onItemDoubleClick={(idx) => {
-            setSelectedIdx(idx);
-            setTimeout(handleEnter, 0);
-          }}
-        />
-      )}
+      <AnimatePresence mode="wait">
+        {view.type === "search" && (
+          <motion.div
+            key="search"
+            initial={{ opacity: 0, x: 20 }}
+            animate={{ opacity: 1, x: 0 }}
+            exit={{ opacity: 0, x: -20 }}
+            transition={{ duration: DURATION.normal, ease: EASE.out }}
+            className="flex-1 overflow-hidden"
+          >
+            <SearchView
+              query={query}
+              setQuery={setQuery}
+              results={results}
+              selectedIdx={selectedIdx}
+              previewTemplate={previewTemplate}
+              previewRef={previewRef}
+              inputRef={inputRef}
+              onItemClick={(idx) => setSelectedIdx(idx)}
+              onItemDoubleClick={(idx) => {
+                setSelectedIdx(idx);
+                setTimeout(handleEnter, 0);
+              }}
+            />
+          </motion.div>
+        )}
 
-      {view.type === "fill" && (
-        <div className="flex-1 overflow-y-auto">
-          <TemplateFillDialog
-            state={view.state}
-            onApply={async (values) => {
-              const outcome = await invoke<ApplyOutcome>("apply_template", {
-                id: view.state.template.id,
-                values,
-              });
-              await finalizeApply(outcome, view.state.template.displayName);
-            }}
-            onUnlock={(values) => {
-              setView({
-                type: "edit",
-                template: view.state.template,
-                returnTo: { type: "fill", state: view.state, values },
-              });
-            }}
-            onCancel={async () => {
-              await invoke("hide_palette");
-            }}
-          />
-        </div>
-      )}
+        {view.type === "fill" && (
+          <motion.div
+            key="fill"
+            initial={{ opacity: 0, x: 20 }}
+            animate={{ opacity: 1, x: 0 }}
+            exit={{ opacity: 0, x: -20 }}
+            transition={{ duration: DURATION.normal, ease: EASE.out }}
+            className="flex-1 overflow-y-auto"
+          >
+            <TemplateFillDialog
+              state={view.state}
+              onApply={async (values) => {
+                const outcome = await invoke<ApplyOutcome>("apply_template", {
+                  id: view.state.template.id,
+                  values,
+                });
+                await finalizeApply(outcome, view.state.template.displayName);
+              }}
+              onUnlock={(values) => {
+                setView({
+                  type: "edit",
+                  template: view.state.template,
+                  returnTo: { type: "fill", state: view.state, values },
+                });
+              }}
+              onCancel={() => {
+                requestHide();
+              }}
+            />
+          </motion.div>
+        )}
 
-      {view.type === "edit" && (
-        <div className="flex-1 overflow-y-auto">
-          <TemplateEditor
-            template={view.template}
-            isNew={false}
-            onSave={handleEditSave}
-            onCancel={handleEditCancel}
-          />
-        </div>
-      )}
+        {view.type === "edit" && (
+          <motion.div
+            key="edit"
+            initial={{ opacity: 0, x: 20 }}
+            animate={{ opacity: 1, x: 0 }}
+            exit={{ opacity: 0, x: -20 }}
+            transition={{ duration: DURATION.normal, ease: EASE.out }}
+            className="flex-1 overflow-y-auto"
+          >
+            <TemplateEditor
+              template={view.template}
+              isNew={false}
+              onSave={handleEditSave}
+              onCancel={handleEditCancel}
+            />
+          </motion.div>
+        )}
+      </AnimatePresence>
 
       {toast && (
         <Toast
@@ -242,7 +290,7 @@ export function Palette() {
           onDismiss={() => setToast(null)}
         />
       )}
-    </div>
+    </motion.div>
   );
 }
 

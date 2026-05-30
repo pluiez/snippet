@@ -1,4 +1,6 @@
 import { useEffect } from "react";
+import { motion } from "framer-motion";
+import { DURATION, EASE } from "./lib/motion";
 
 interface Props {
   title: string;
@@ -28,8 +30,20 @@ export function ConfirmDialog({
   }, [onCancel]);
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4">
-      <div className="w-full max-w-sm rounded-lg bg-white p-5 shadow-xl dark:bg-zinc-800">
+    <motion.div
+      initial={{ opacity: 0 }}
+      animate={{ opacity: 1 }}
+      exit={{ opacity: 0 }}
+      transition={{ duration: DURATION.fast, ease: EASE.out }}
+      className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4"
+    >
+      <motion.div
+        initial={{ opacity: 0, scale: 0.95 }}
+        animate={{ opacity: 1, scale: 1 }}
+        exit={{ opacity: 0, scale: 0.95 }}
+        transition={{ duration: DURATION.fast, ease: EASE.out }}
+        className="w-full max-w-sm rounded-lg bg-white p-5 shadow-xl dark:bg-zinc-800"
+      >
         <h3 className="mb-2 text-base font-semibold text-zinc-900 dark:text-zinc-100">{title}</h3>
         <p className="mb-5 text-sm leading-relaxed text-zinc-600 dark:text-zinc-400">{message}</p>
         <div className="flex justify-end gap-2">
@@ -54,7 +68,7 @@ export function ConfirmDialog({
             {confirmText}
           </button>
         </div>
-      </div>
-    </div>
+      </motion.div>
+    </motion.div>
   );
 }

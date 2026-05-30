@@ -211,7 +211,7 @@ function ColorRow({
       <button
         type="button"
         onClick={() => inputRef.current?.click()}
-        className="h-7 w-12 shrink-0 rounded border border-zinc-200 dark:border-zinc-600"
+        className="h-7 w-12 shrink-0 rounded border border-zinc-200 transition-colors duration-200 dark:border-zinc-600"
         style={{ backgroundColor: color }}
         title="自定义颜色"
       />

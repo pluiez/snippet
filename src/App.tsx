@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { invoke } from "@tauri-apps/api/core";
 import { listen } from "@tauri-apps/api/event";
+import { AnimatePresence, motion } from "framer-motion";
 import { Palette as PaletteIcon, Settings as SettingsIcon, X } from "lucide-react";
 import type { AppInfo } from "./lib/bindings/AppInfo";
 import type { ApplyOutcome } from "./lib/bindings/ApplyOutcome";
@@ -14,6 +15,7 @@ import { Toast } from "./Toast";
 import { ColorManagement } from "./ColorManagement";
 import { Settings } from "./Settings";
 import { mergeFillValues } from "./lib/fill";
+import { DURATION, EASE } from "./lib/motion";
 
 type ReturnTo =
   | { type: "list" }
@@ -57,7 +59,6 @@ export default function App() {
     });
     const glow = listen("main-window-glow", () => {
       setGlowing(true);
-      setTimeout(() => setGlowing(false), 900);
     });
     return () => {
       changed.then((fn) => fn());
@@ -119,9 +120,10 @@ export default function App() {
 
   return (
     <main
+      onAnimationEnd={() => setGlowing(false)}
       className={
-        "min-h-screen bg-zinc-50 font-sans transition-shadow duration-300 dark:bg-zinc-900 " +
-        (glowing ? "shadow-[inset_0_0_0_4px_rgb(251_191_36)]" : "")
+        "min-h-screen bg-zinc-50 font-sans dark:bg-zinc-900 " +
+        (glowing ? "animate-[glow-pulse_0.6s_ease-in-out_2]" : "")
       }
     >
       <header className="flex items-baseline gap-3 border-b border-zinc-200 bg-white px-6 py-3 dark:border-zinc-700 dark:bg-zinc-900">
@@ -131,130 +133,184 @@ export default function App() {
         </span>
       </header>
 
-      {inSideBarView && (
-        <div className="flex">
-          <MainNav
-            active={view.type as "list" | "colors" | "settings"}
-            tagFilter={tagFilter}
-            onSelectAll={() => {
-              setTagFilter(null);
-              setView({ type: "list" });
-            }}
-            onSelectColors={() => setView({ type: "colors" })}
-            onSelectSettings={() => setView({ type: "settings" })}
-            onClearTag={() => setTagFilter(null)}
-          />
-
-          {view.type === "list" && (
-            <TemplateList
-              templates={filteredTemplates}
-              loaded={loaded}
+      <AnimatePresence mode="wait">
+        {inSideBarView && (
+          <motion.div
+            key="sidebar"
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            transition={{ duration: DURATION.fast, ease: EASE.out }}
+            className="flex"
+          >
+            <MainNav
+              active={view.type as "list" | "colors" | "settings"}
               tagFilter={tagFilter}
-              onClearTagFilter={() => setTagFilter(null)}
-              onTagClick={(t) => setTagFilter(t)}
-              onNew={() =>
-                setView({
-                  type: "edit",
-                  template: makeNewTemplate(),
-                  isNew: true,
-                  returnTo: { type: "list" },
-                })
-              }
-              onEdit={async (id) => {
-                const t = await invoke<Template | null>("get_template", { id });
-                if (t)
-                  setView({
-                    type: "edit",
-                    template: t,
-                    isNew: false,
-                    returnTo: { type: "list" },
-                  });
+              onSelectAll={() => {
+                setTagFilter(null);
+                setView({ type: "list" });
               }}
-              onDuplicate={async (id) => {
-                const t = await invoke<Template>("duplicate_template", {
-                  sourceId: id,
-                });
-                setView({
-                  type: "edit",
-                  template: t,
-                  isNew: false,
-                  returnTo: { type: "list" },
-                });
-              }}
-              onFill={async (id) => {
-                const state = await invoke<FillDialogState>(
-                  "prepare_fill_dialog",
-                  { id }
-                );
-                if (state.orderedVariables.length === 0) {
-                  const outcome = await invoke<ApplyOutcome>("apply_template", {
-                    id,
-                    values: {},
-                  });
-                  toastForOutcome(outcome, state.template.displayName);
-                } else {
-                  setView({ type: "fill", state });
-                }
-              }}
-              onTogglePin={async (id, pinned) => {
-                try {
-                  await invoke("set_pinned", { id, pinned });
-                } catch (e) {
-                  console.error("set_pinned failed", e);
-                }
-              }}
-              onDelete={async (id) => {
-                await invoke("delete_template", { id });
-              }}
+              onSelectColors={() => setView({ type: "colors" })}
+              onSelectSettings={() => setView({ type: "settings" })}
+              onClearTag={() => setTagFilter(null)}
             />
-          )}
 
-          {view.type === "colors" && (
-            <ColorManagement onClose={() => setView({ type: "list" })} />
-          )}
+            <AnimatePresence mode="wait">
+              {view.type === "list" && (
+                <motion.div
+                  key="list"
+                  initial={{ opacity: 0 }}
+                  animate={{ opacity: 1 }}
+                  exit={{ opacity: 0 }}
+                  transition={{ duration: DURATION.fast, ease: EASE.out }}
+                  className="flex-1"
+                >
+                  <TemplateList
+                    templates={filteredTemplates}
+                    loaded={loaded}
+                    tagFilter={tagFilter}
+                    onClearTagFilter={() => setTagFilter(null)}
+                    onTagClick={(t) => setTagFilter(t)}
+                    onNew={() =>
+                      setView({
+                        type: "edit",
+                        template: makeNewTemplate(),
+                        isNew: true,
+                        returnTo: { type: "list" },
+                      })
+                    }
+                    onEdit={async (id) => {
+                      const t = await invoke<Template | null>("get_template", { id });
+                      if (t)
+                        setView({
+                          type: "edit",
+                          template: t,
+                          isNew: false,
+                          returnTo: { type: "list" },
+                        });
+                    }}
+                    onDuplicate={async (id) => {
+                      const t = await invoke<Template>("duplicate_template", {
+                        sourceId: id,
+                      });
+                      setView({
+                        type: "edit",
+                        template: t,
+                        isNew: false,
+                        returnTo: { type: "list" },
+                      });
+                    }}
+                    onFill={async (id) => {
+                      const state = await invoke<FillDialogState>(
+                        "prepare_fill_dialog",
+                        { id }
+                      );
+                      if (state.orderedVariables.length === 0) {
+                        const outcome = await invoke<ApplyOutcome>("apply_template", {
+                          id,
+                          values: {},
+                        });
+                        toastForOutcome(outcome, state.template.displayName);
+                      } else {
+                        setView({ type: "fill", state });
+                      }
+                    }}
+                    onTogglePin={async (id, pinned) => {
+                      try {
+                        await invoke("set_pinned", { id, pinned });
+                      } catch (e) {
+                        console.error("set_pinned failed", e);
+                      }
+                    }}
+                    onDelete={async (id) => {
+                      await invoke("delete_template", { id });
+                    }}
+                  />
+                </motion.div>
+              )}
 
-          {view.type === "settings" && (
-            <Settings onClose={() => setView({ type: "list" })} />
-          )}
-        </div>
-      )}
+              {view.type === "colors" && (
+                <motion.div
+                  key="colors"
+                  initial={{ opacity: 0 }}
+                  animate={{ opacity: 1 }}
+                  exit={{ opacity: 0 }}
+                  transition={{ duration: DURATION.fast, ease: EASE.out }}
+                  className="flex-1"
+                >
+                  <ColorManagement onClose={() => setView({ type: "list" })} />
+                </motion.div>
+              )}
 
-      {view.type === "edit" && (
-        <TemplateEditor
-          template={view.template}
-          isNew={view.isNew}
-          onSave={handleEditSave}
-          onCancel={handleEditCancel}
-          onMutexTransfer={(name) => showToast(`已从 ${name} 转移`)}
-        />
-      )}
+              {view.type === "settings" && (
+                <motion.div
+                  key="settings"
+                  initial={{ opacity: 0 }}
+                  animate={{ opacity: 1 }}
+                  exit={{ opacity: 0 }}
+                  transition={{ duration: DURATION.fast, ease: EASE.out }}
+                  className="flex-1"
+                >
+                  <Settings onClose={() => setView({ type: "list" })} />
+                </motion.div>
+              )}
+            </AnimatePresence>
+          </motion.div>
+        )}
 
-      {view.type === "fill" && (
-        <TemplateFillDialog
-          state={view.state}
-          onApply={async (values) => {
-            const outcome = await invoke<ApplyOutcome>("apply_template", {
-              id: view.state.template.id,
-              values,
-            });
-            toastForOutcome(outcome, view.state.template.displayName);
-            setView({ type: "list" });
-          }}
-          onUnlock={(values) => {
-            setView({
-              type: "edit",
-              template: view.state.template,
-              isNew: false,
-              returnTo: {
-                type: "fill",
-                state: view.state,
-                values,
-              },
-            });
-          }}
-          onCancel={() => setView({ type: "list" })}
-        />
-      )}
+        {view.type === "edit" && (
+          <motion.div
+            key="edit"
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            transition={{ duration: DURATION.fast, ease: EASE.out }}
+          >
+            <TemplateEditor
+              template={view.template}
+              isNew={view.isNew}
+              onSave={handleEditSave}
+              onCancel={handleEditCancel}
+              onMutexTransfer={(name) => showToast(`已从 ${name} 转移`)}
+            />
+          </motion.div>
+        )}
+
+        {view.type === "fill" && (
+          <motion.div
+            key="fill"
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            transition={{ duration: DURATION.fast, ease: EASE.out }}
+          >
+            <TemplateFillDialog
+              state={view.state}
+              onApply={async (values) => {
+                const outcome = await invoke<ApplyOutcome>("apply_template", {
+                  id: view.state.template.id,
+                  values,
+                });
+                toastForOutcome(outcome, view.state.template.displayName);
+                setView({ type: "list" });
+              }}
+              onUnlock={(values) => {
+                setView({
+                  type: "edit",
+                  template: view.state.template,
+                  isNew: false,
+                  returnTo: {
+                    type: "fill",
+                    state: view.state,
+                    values,
+                  },
+                });
+              }}
+              onCancel={() => setView({ type: "list" })}
+            />
+          </motion.div>
+        )}
+      </AnimatePresence>
 
       {toast && (
         <Toast

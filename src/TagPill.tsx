@@ -16,7 +16,7 @@ export function TagPill({ tag, onClick }: Props) {
       onClick={onClick}
       style={{ backgroundColor: color }}
       className={
-        "inline-block rounded-full px-2 py-0.5 text-xs text-white " +
+        "inline-block rounded-full px-2 py-0.5 text-xs text-white transition-colors duration-200 " +
         (interactive
           ? "cursor-pointer hover:opacity-80"
           : "cursor-default")
