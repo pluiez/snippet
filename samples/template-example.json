@@ -1,0 +1,34 @@
+{
+  "schemaVersion": 1,
+  "id": "550e8400-e29b-41d4-a716-446655440000",
+  "displayName": "翻译模板",
+  "body": "翻译成 {a1b2c3d4-1111-2222-3333-444444444444}：{e5f6a7b8-1111-2222-3333-444444444444}",
+  "variables": [
+    {
+      "guid": "a1b2c3d4-1111-2222-3333-444444444444",
+      "displayName": "Language",
+      "type": "enum",
+      "options": ["中文", "日文", "英文"],
+      "required": true,
+      "fillFromClipboard": false,
+      "rememberLastUsed": true,
+      "staticDefault": null
+    },
+    {
+      "guid": "e5f6a7b8-1111-2222-3333-444444444444",
+      "displayName": "text",
+      "type": "text",
+      "options": null,
+      "required": true,
+      "fillFromClipboard": true,
+      "rememberLastUsed": false,
+      "staticDefault": null
+    }
+  ],
+  "tags": ["AI", "翻译"],
+  "isPinned": false,
+  "createdAt": "2026-05-30T00:00:00Z",
+  "updatedAt": "2026-05-30T00:00:00Z",
+  "lastUsedAt": null,
+  "useCount": 0
+}
