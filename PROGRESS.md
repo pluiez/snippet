@@ -373,7 +373,7 @@
 - macOS / Linux 平台的 auto-paste 没实现（stub 返回错误，会全降级到 clipboard-only）
 - 部分 app（Sublime Text、可能 Vim / 游戏 launcher / 自绘 Win32 工具）会忽略 `SendInput` 模拟的 Ctrl+V。enigo 在 API 层返回成功，backend `outcome.pasted=true`，前端不显示 toast，但目标 app 实际没收到 → false-positive。无法在 backend 检测。用户需手动 Ctrl+V（剪贴板内容还在）。这是 OS 级输入模拟的固有限制，非 bug
 
-### Slice 7a — Onboarding 流程 + dataFolderPath 设置入口 🚧 实现完成，待验证
+### Slice 7a — Onboarding 流程 + dataFolderPath 设置入口 ✅
 
 实施日期：2026-05-30。**Slice 7 拆分为 7a / 7b / 7c**（详见 plan 与本文件下方"Spec 决议日志"E1）。
 
@@ -519,7 +519,7 @@
 - 单元测试只覆盖 parser；re_register_hotkey 涉及 Tauri AppHandle，得集成测试 / 手动验证
 - HotkeyInput 视觉风格在 dark 模式下要重做（amber 在 dark bg 上颜色调整）→ Slice 7c 处理
 
-### Slice 7c — 主题切换（light/dark/system + 全组件 dark 适配） 🚧 实现完成，待验证
+### Slice 7c — 主题切换（light/dark/system + 全组件 dark 适配） ✅
 
 实施日期：2026-05-30。
 

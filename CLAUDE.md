@@ -4,9 +4,9 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Repository status
 
-**Phase 2 complete through Slice 6.** Working app: scaffold + data layer + main-window CRUD + palette + variable fill + edit mode + colors + clipboard output with Windows autoPaste. See `PROGRESS.md` for per-slice notes (what landed, what was verified, known limitations, and spec decisions written back into SPEC/ARCHITECTURE).
+**Phase 2 complete through Slice 7 (all sub-slices 7a/7b/7c).** Working app: scaffold + data layer + main-window CRUD + palette + variable fill + edit mode + colors + clipboard output with Windows autoPaste + first-launch onboarding + complete settings page (hotkey live re-register, autoPaste, dataFolderPath) + theme switching (light/dark/system with full component dark adaptation). See `PROGRESS.md` for per-slice notes.
 
-**Next: Slice 7 — Onboarding + 完整设置页** (per `TASKS.md` §Phase 2). Current Settings page is a minimal stub with only autoPaste; Slice 7 adds hotkey (with conflict check + live re-register), theme (light/dark/system), dataFolderPath, plus the onboarding window for first-launch path selection.
+**Next: Phase 3 — 打磨与发布** (per `TASKS.md`). Includes: file watcher, error handling polish, dirty-state guards, accessibility, CI, packaging, documentation.
 
 ## Picking up where the last session left off
 
