@@ -3,6 +3,7 @@
 
 use crate::auto_paste;
 use crate::color;
+use crate::hotkey;
 use crate::onboarding;
 use crate::palette;
 use crate::paths;
@@ -20,6 +21,7 @@ use std::collections::HashMap;
 use std::sync::atomic::Ordering;
 use tauri::{AppHandle, Emitter, State};
 use tauri_plugin_clipboard_manager::ClipboardExt;
+use tauri_plugin_global_shortcut::GlobalShortcutExt;
 use tracing::{info, warn};
 use ts_rs::TS;
 use uuid::Uuid;
@@ -548,20 +550,113 @@ pub fn save_settings(
     state: State<'_, AppState>,
     settings: Settings,
 ) -> Result<(), String> {
-    let mut s = settings;
+    let mut new_settings = settings;
     // Don't trust frontend's schemaVersion — pin to current.
-    s.schema_version = CURRENT_SCHEMA_VERSION;
+    new_settings.schema_version = CURRENT_SCHEMA_VERSION;
 
+    // Snapshot the old hotkey BEFORE any side effects so we can roll back
+    // if a later step fails.
+    let old_hotkey = {
+        let s = state
+            .settings
+            .lock()
+            .map_err(|e| format!("settings lock poisoned: {e}"))?;
+        s.hotkey.clone()
+    };
+    let hotkey_changed = old_hotkey != new_settings.hotkey;
+
+    // Step 1 (can fail): re-register hotkey with the OS. On failure the
+    // helper internally restores the old binding before returning Err.
+    if hotkey_changed {
+        hotkey::re_register_hotkey(&app, Some(&old_hotkey), &new_settings.hotkey)
+            .map_err(|e| format!("{e:#}"))?;
+    }
+
+    // Step 2 (can fail): write to disk. If this fails we must roll back
+    // step 1 so the OS state matches what's on disk (= old settings).
     let path = state.settings_path();
-    storage::atomic_write(&path, &s).map_err(|e| format!("write failed: {e:#}"))?;
+    if let Err(e) = storage::atomic_write(&path, &new_settings) {
+        if hotkey_changed {
+            if let Err(e2) =
+                hotkey::re_register_hotkey(&app, Some(&new_settings.hotkey), &old_hotkey)
+            {
+                warn!(
+                    error = %e2,
+                    "failed to roll back hotkey after settings write failure — \
+                     OS now has new hotkey but disk has old"
+                );
+            }
+        }
+        return Err(format!("write failed: {e:#}"));
+    }
 
     *state
         .settings
         .lock()
-        .map_err(|e| format!("settings lock poisoned: {e}"))? = s;
+        .map_err(|e| format!("settings lock poisoned: {e}"))? = new_settings;
 
     app.emit(SETTINGS_CHANGED_EVENT, ())
         .map_err(|e| format!("emit failed: {e}"))?;
+    Ok(())
+}
+
+/// Validate a hotkey string without registering it. Frontend calls this on
+/// every keystroke in the HotkeyInput to give live feedback.
+#[tauri::command]
+pub fn validate_hotkey(value: String) -> Result<(), String> {
+    hotkey::parse_hotkey(&value)
+        .map(|_| ())
+        .map_err(|e| format!("{e:#}"))
+}
+
+/// Temporarily unregister the active global hotkey so the HotkeyInput can
+/// receive the same key combination. Without this the OS routes the combo
+/// to the registered handler (palette glow / show) and the webview never
+/// sees the keydown — making it impossible to "type" the currently bound
+/// hotkey to choose a different one.
+///
+/// Best-effort: unregister failures are logged and swallowed.
+#[tauri::command]
+pub fn pause_hotkey(app: AppHandle, state: State<'_, AppState>) -> Result<(), String> {
+    let current = match state.settings.lock() {
+        Ok(s) => s.hotkey.clone(),
+        Err(e) => {
+            warn!(error = ?e, "pause_hotkey: settings lock poisoned");
+            return Ok(());
+        }
+    };
+    if let Ok(shortcut) = hotkey::parse_hotkey(&current) {
+        if let Err(e) = app.global_shortcut().unregister(shortcut) {
+            warn!(error = ?e, hotkey = %current, "pause_hotkey: unregister failed (may not be registered)");
+        } else {
+            info!(hotkey = %current, "hotkey paused for capture");
+        }
+    }
+    Ok(())
+}
+
+/// Re-register the active global hotkey after a HotkeyInput capture session
+/// (the user blurred without saving, or the saved value is the same as before).
+/// If the user picked a NEW hotkey via save_settings, this is harmless: it
+/// registers the old one, then save_settings re-registers (old → new).
+///
+/// Best-effort: failures logged.
+#[tauri::command]
+pub fn resume_hotkey(app: AppHandle, state: State<'_, AppState>) -> Result<(), String> {
+    let current = match state.settings.lock() {
+        Ok(s) => s.hotkey.clone(),
+        Err(e) => {
+            warn!(error = ?e, "resume_hotkey: settings lock poisoned");
+            return Ok(());
+        }
+    };
+    if let Ok(shortcut) = hotkey::parse_hotkey(&current) {
+        if let Err(e) = app.global_shortcut().register(shortcut) {
+            warn!(error = ?e, hotkey = %current, "resume_hotkey: register failed");
+        } else {
+            info!(hotkey = %current, "hotkey resumed");
+        }
+    }
     Ok(())
 }
 

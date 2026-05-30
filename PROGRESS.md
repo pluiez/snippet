@@ -447,6 +447,78 @@
 - `exit_app` IPC 是新加的（plan 没列），Slice 7b 也会需要它做"改热键失败需重启"路径（实际上 7b 是即时 re-register 不需要重启，所以可能不会用到）
 - `validate_path_for_import` 检测 Snippet 结构靠几个 marker 文件（templates/、settings.json 等任一）；如果用户的备份目录刚好只有空 templates/ 子目录，也会被认作 ValidSnippet（合理 —— 那个目录确实"是" Snippet folder，只是没模板）
 
+### Slice 7b — 完整设置页（hotkey + autoPaste 整合） 🚧 实现完成，待验证
+
+实施日期：2026-05-30。前端工作主要是 `HotkeyInput` + `Settings.tsx` 重构；后端是 hotkey 解析 + 事务化 save_settings。
+
+**已落地（后端）**：
+
+- 新模块 `src-tauri/src/hotkey.rs`：
+  - `parse_hotkey(s) -> Result<Shortcut>` —— `+`-分隔字符串解析，大小写不敏感。修饰键别名：`Ctrl/Control` / `Alt/Option` / `Shift` / `Cmd/Command/Meta/Super/Win/Windows`。普通键：`A-Z` / `0-9` / `F1-F24` / `Space/Enter/Tab/Escape/Backspace/Delete/Insert/Up/Down/Left/Right/Home/End/PageUp/PageDown` 含别名（`Esc`/`Del`/`Ins`/`PgUp`/`PgDn`/`ArrowUp` 等）。规则：F1-F24 可不带修饰键，其它键必须至少一个修饰键 + 一个普通键，普通键必须在最后
+  - `re_register_hotkey(app, old, new)` —— 卸老 + 注新；新键注册失败时尝试恢复老键再返错；老键 unparseable 时跳过 unregister + warn（"corrupted settings 不应让用户失去 hotkey"）
+  - 12 个 `#[cfg(test)]` 单测：basic combo / case insensitive / letter / digit / named keys / function keys without modifier / modifier aliases (cmd/meta/win 同 SUPER) / 空字符串 reject / 仅修饰键 reject / 单字母无修饰键 reject / 未知键名 reject / 修饰键在普通键之后 reject
+- `commands.rs::save_settings` 重写为事务式：
+  1. snapshot old hotkey from state
+  2. 如果 new != old，调 `hotkey::re_register_hotkey` —— 失败 → 直接返错（state / 盘 / OS 都未动；helper 内部已尝试恢复老键）
+  3. `atomic_write(settings.json)` —— 失败 → 调 `re_register_hotkey(new, old)` 回滚 OS 端，再返错
+  4. 更新 state.settings mutex
+  5. emit `settings-changed`
+- 新 IPC `validate_hotkey(value: String)` —— pure parse 校验，给前端 inline 验证用
+- `lib.rs`：
+  - `register_default_hotkey` → `register_hotkey_from_settings(app)`：读 `state.settings.hotkey`，调 `parse_hotkey` + `register`。parse 或 register 失败都是 best-effort warning，**不** panic（用户可在设置页改回正确值）
+  - 删掉 `Code` / `Modifiers` / `Shortcut` 直接 import（封装在 hotkey 模块内）
+  - 注册 `validate_hotkey` IPC
+
+**已落地（前端）**：
+
+- 新 `src/HotkeyInput.tsx`：
+  - tabIndex div 视觉上像输入框
+  - onFocus 进入捕获态（amber 边框 + ring，文案"请按下键组合…（Esc 取消）"）；onBlur 退出
+  - 用 `KeyboardEvent.code`（物理键 / layout 中立）映射到与 Rust 端一致的字符串。codeToHotkeyKey 处理 KeyA-Z / Digit0-9 / F1-F24 / 命名键 + Tauri 兼容别名（Up vs ArrowUp 等）
+  - 不可绑：plain Esc（取消捕获）/ plain Tab（焦点导航）/ Enter（任何修饰，避免 form submit）/ 仅修饰键（等待普通键）
+  - 内部存 `Ctrl+Alt+Space`，显示 `Ctrl + Alt + Space`（更易读）
+- `src/Settings.tsx` 重构 section-based：
+  - 三行：全局热键（HotkeyInput）/ 自动粘贴（checkbox 从 7a 迁移）/ 数据文件夹（路径 + 更改按钮，从 7a 迁移）
+  - 保存失败时显示红色 inline 错误（含警告图标 + 错误信息 + "设置未持久化；旧值仍生效"提示），用户改 hotkey 时 saveError 自动清空
+  - cancel 重置 staged + 清错
+
+**SPEC §13 不变量保证**：
+
+- 不变量 9（窗口互斥）：改 hotkey 时通过 `global_shortcut().unregister(old) + register(new)` 立即同步 OS 状态；旧热键不再响应、新热键立即工作。互斥规则与 Slice 4 一致（main 可见 → 不弹 palette；palette 可见 → 唤起 main 关 palette）
+
+**待用户验证**：
+
+⚠️ **首次跑前**：`pnpm bindings` 重新编译 + 验证 hotkey 模块的 12 个单测通过
+
+验收场景：
+
+1. **改热键 + 即时生效**：主窗口设置页 → 全局热键行 → 点输入框（边框变 amber）→ 按 `Ctrl+Alt+K` → 显示 "Ctrl + Alt + K" → 保存 → toast 无错误 → 切到记事本 → 按 `Ctrl+Alt+K` → palette 弹出 ✓；按旧的 `Ctrl+Alt+Space` → 无反应 ✓
+2. **持久 + 重启**：步骤 1 后退出 app → `pnpm tauri dev` 重启 → 在记事本按 `Ctrl+Alt+K` → palette 弹（说明 lib.rs 启动时正确读了 settings.hotkey）
+3. **冲突注册被 OS 拒**（process collision）：起一个独立小工具占用某热键（例如用 PowerToys 把 `Ctrl+Alt+J` 绑成别的）→ Snippet 设置页改 hotkey 为 `Ctrl+Alt+J` → 保存 → **预期**：红色 inline 错误 "registering 'Ctrl+Alt+J' failed: ..."；旧热键仍工作。**注意**：Win+L / Ctrl+Alt+Del / Win+R 这类 Windows 系统级保留组合在键事件到达 webview 之前就被 OS 拦截，HotkeyInput 收不到 → 测不出错误，是 OS 限制；用 PowerToys / 第三方工具占用的"普通"组合才会走到 register 失败路径
+4. **解析错误**：理论上 HotkeyInput 不会发非法字符串给后端，但可手动测：在 dev console 跑 `await window.__TAURI__.core.invoke("validate_hotkey", { value: "BadKey" })` → 抛 "unknown key 'BadKey'"
+5. **Esc 取消捕获**：HotkeyInput 点开 → 不按任何键 → 按 Esc → 输入框退出捕获态、值不变
+6. **Enter 不绑**：捕获 → 按 `Ctrl+Enter` → 无反应（Enter 是保留键）
+7. **Tab 不绑（不带修饰键）**：捕获 → 按 Tab → 焦点不切走（捕获中 preventDefault），值不变。**带修饰键** Tab（如 `Ctrl+Tab`）→ 可绑（这是设计；plan 仅说"plain Tab 不绑"）
+8. **F1 单独**：捕获 → 按 F1 → 显示 `F1`，无修饰键 OK（功能键放行）
+9. **修饰键别名（unit 测覆盖）**：runtime 测 `Win+K` 等 SUPER 修饰键无意义 —— Windows 把 Win+K / Win+L / Win+R 等几乎所有 Win+letter 都拦截成系统快捷键。如需运行时验证 SUPER 别名生效，建议用 `Ctrl+Alt+Shift+K` 一类多修饰键组合即可。Cmd/Meta/Win/Super 字符串都解析成 SUPER 这个事实由 `parse_modifier_aliases` 单测保证
+
+**实施期间发现 + 修的问题**：
+
+- 一开始想用 tauri-plugin-global-shortcut 的 `Shortcut::FromStr`（plugin 直接提供），但其格式跟 Tauri 1.x 风格（CommandOrControl 等）不完全一致 + 错误信息不友好。改写自家 parser 给中文 UX 留扩展空间，副产品是单测覆盖到位
+- HotkeyInput 用 `e.key` 还是 `e.code` 选择：`e.key` 是已经被 OS 翻译过的字符（CapsLock / 输入法 / 布局影响），同样物理键不同布局给不同字符。`e.code` 是物理位置，layout 中立。绑热键的语义是物理键，所以用 `e.code` 更对。已确认跟 Rust 端 `keyboard_types::Code` 名称一致
+- `tauri_plugin_global_shortcut::Shortcut` 等于 `global_hotkey::HotKey`，`mods` 和 `key` 是 pub fields，PartialEq+Eq 都实现 → 单测可以直接 `assert_eq!(parsed.key, Code::KeyK)`
+- **首次手测发现自抢先 bug**：app 自身已注册的 hotkey 在 HotkeyInput 捕获态下仍被 OS 优先 dispatch（WM_HOTKEY 不送入 webview keydown），导致用户按下当前已绑的组合时 HotkeyInput 收不到 → 永远改不掉与当前重叠修饰键的组合。修法：新增 `pause_hotkey` / `resume_hotkey` IPC，HotkeyInput onFocus 时 unregister、onBlur 时 register 回。中间用户改了热键 → save_settings 的 re_register 接管（先 register 老的、然后 register 新的、覆盖掉）。不冲突，最多多一次注册调用
+- 第一版 `parse_function_keys_no_modifier` 单测挂掉：early `parts.len() < 2` reject 把单独 F1 也卡掉（功能键豁免在循环之后才跑）。删掉 early reject，让循环和后置 modifier-empty 检查接力完成校验
+
+**已知坑 / 留给后续切片**：
+
+- **OS 系统级保留组合不可绑**：Windows 把 Win+L（锁屏）/ Ctrl+Alt+Del（安全注意）/ Win+R（运行）等多组组合在键事件到达进程之前直接拦截。HotkeyInput 收不到 keydown 也就无法记录，更无法测出 register 失败 —— 是 OS 限制，无法在 app 内修复。SPEC §12 没要求 v1 提供"OS 保留键提示"，留给 Phase 3 工作流 B 的错误处理 punch list（可能加一份 known-reserved combos 列表给用户参考）
+- pause/resume 流程有微小竞态：onFocus → invoke pause（async）期间用户立即按下当前已绑的组合，OS 仍可能抢先一次。实际 UX 不明显（pause 通常 < 10ms），如反馈为问题再加 "正在准备..." loading 态
+- 改热键失败时 OS 老键仍生效 + 设置 staged 保留新热键 + dirty 状态保留 → 用户可以改回 staged 重新尝试
+- 没有"恢复默认"按钮（重置回 Ctrl+Alt+Space）—— 用户可手动输入或清空 settings.json 重启
+- 单元测试只覆盖 parser；re_register_hotkey 涉及 Tauri AppHandle，得集成测试 / 手动验证
+- HotkeyInput 视觉风格在 dark 模式下要重做（amber 在 dark bg 上颜色调整）→ Slice 7c 处理
+
 ## Phase 3 — 打磨与发布
 
 未开始。

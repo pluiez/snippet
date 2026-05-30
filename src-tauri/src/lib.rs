@@ -1,6 +1,7 @@
 mod auto_paste;
 mod color;
 mod commands;
+mod hotkey;
 mod onboarding;
 mod palette;
 mod paths;
@@ -15,7 +16,7 @@ use tauri::{
     tray::{MouseButton, MouseButtonState, TrayIconBuilder, TrayIconEvent},
     AppHandle, Manager, RunEvent, WindowEvent,
 };
-use tauri_plugin_global_shortcut::{Code, GlobalShortcutExt, Modifiers, Shortcut, ShortcutState};
+use tauri_plugin_global_shortcut::{GlobalShortcutExt, ShortcutState};
 use tracing::{info, warn};
 use ts_rs::TS;
 
@@ -25,7 +26,8 @@ use crate::commands::{
     duplicate_template, exit_app, get_settings, get_tag_colors, get_template, get_variable_colors,
     hide_palette, list_templates, prepare_fill_dialog, random_color, save_settings,
     save_tag_colors, save_template, save_variable_colors, search_templates, set_data_folder_path,
-    set_pinned, show_main_window, show_palette, validate_path_for_import, validate_path_for_new,
+    pause_hotkey, resume_hotkey, set_pinned, show_main_window, show_palette, validate_hotkey,
+    validate_path_for_import, validate_path_for_new,
 };
 use crate::schema::{Bootstrap, LastUsed, Settings, TagColorMap, VariableColorMap};
 use crate::state::AppState;
@@ -97,6 +99,9 @@ pub fn run() {
             random_color,
             get_settings,
             save_settings,
+            validate_hotkey,
+            pause_hotkey,
+            resume_hotkey,
             default_data_folder,
             current_data_folder,
             validate_path_for_new,
@@ -181,7 +186,7 @@ pub fn run() {
                 let state = init_full_state(app.handle(), &bootstrap)
                     .expect("failed to initialize app state");
                 app.manage(state);
-                register_default_hotkey(app.handle());
+                register_hotkey_from_settings(app.handle());
             }
 
             Ok(())
@@ -267,13 +272,36 @@ fn init_full_state(app: &AppHandle, bootstrap: &Bootstrap) -> anyhow::Result<App
     Ok(state)
 }
 
-/// Register the default global hotkey. Hard-coded for Slice 7a;
-/// Slice 7b makes the keybinding configurable from Settings.
-fn register_default_hotkey(app: &AppHandle) {
-    let hotkey = Shortcut::new(Some(Modifiers::CONTROL | Modifiers::ALT), Code::Space);
-    match app.global_shortcut().register(hotkey) {
-        Ok(()) => info!("global hotkey registered: Ctrl+Alt+Space"),
-        Err(e) => warn!(error = ?e, "failed to register global hotkey"),
+/// Register the global hotkey from `settings.hotkey`. Best-effort: parse
+/// failures or registration failures are logged as warnings (not fatal) — the
+/// app keeps running, just without a working palette shortcut. The user can
+/// fix the keybinding from the Settings page.
+///
+/// Caller must `app.manage(state)` BEFORE calling this — we read the hotkey
+/// string out of `AppState.settings`. Returns silently if state isn't
+/// managed yet (defensive; should never happen in practice).
+fn register_hotkey_from_settings(app: &AppHandle) {
+    let Some(state) = app.try_state::<AppState>() else {
+        warn!("register_hotkey_from_settings called before AppState was managed");
+        return;
+    };
+    let hotkey_str = match state.settings.lock() {
+        Ok(s) => s.hotkey.clone(),
+        Err(e) => {
+            warn!(error = ?e, "settings lock poisoned; skipping hotkey register");
+            return;
+        }
+    };
+    match hotkey::parse_hotkey(&hotkey_str) {
+        Ok(shortcut) => match app.global_shortcut().register(shortcut) {
+            Ok(()) => info!(hotkey = %hotkey_str, "global hotkey registered"),
+            Err(e) => warn!(error = ?e, hotkey = %hotkey_str, "failed to register global hotkey"),
+        },
+        Err(e) => warn!(
+            error = %e,
+            hotkey = %hotkey_str,
+            "settings.hotkey unparseable; no hotkey active"
+        ),
     }
 }
 
@@ -305,7 +333,7 @@ pub fn complete_onboarding(
 
     let state = init_full_state(app, &bootstrap)?;
     app.manage(state);
-    register_default_hotkey(app);
+    register_hotkey_from_settings(app);
 
     if let Some(w) = app.get_webview_window("onboarding") {
         let _ = w.hide();

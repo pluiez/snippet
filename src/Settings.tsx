@@ -1,9 +1,10 @@
 import { useCallback, useEffect, useState } from "react";
 import { invoke } from "@tauri-apps/api/core";
 import { open } from "@tauri-apps/plugin-dialog";
-import { FolderOpen, Save, X } from "lucide-react";
+import { AlertTriangle, FolderOpen, Save, X } from "lucide-react";
 import { useSettings } from "./lib/settings";
 import { ConfirmDialog } from "./ConfirmDialog";
+import { HotkeyInput } from "./HotkeyInput";
 import type { Settings as SettingsType } from "./lib/bindings/Settings";
 import type { DataFolderStatus } from "./lib/bindings/DataFolderStatus";
 
@@ -15,6 +16,7 @@ export function Settings({ onClose }: Props) {
   const { settings } = useSettings();
   const [staged, setStaged] = useState<SettingsType | null>(null);
   const [saving, setSaving] = useState(false);
+  const [saveError, setSaveError] = useState<string | null>(null);
 
   const [dataFolder, setDataFolder] = useState<string>("");
   const [pendingFolderChange, setPendingFolderChange] = useState<string | null>(null);
@@ -47,11 +49,14 @@ export function Settings({ onClose }: Props) {
   const dirty = JSON.stringify(staged) !== JSON.stringify(settings);
 
   const onSave = async () => {
+    setSaveError(null);
     setSaving(true);
     try {
       await invoke("save_settings", { settings: staged });
     } catch (e) {
-      console.error("save_settings failed", e);
+      // Backend returns string errors. Hotkey conflicts surface here:
+      // "registering 'Ctrl+Alt+K' failed: ..." or "invalid hotkey '...': ...".
+      setSaveError(String(e));
     } finally {
       setSaving(false);
     }
@@ -59,15 +64,12 @@ export function Settings({ onClose }: Props) {
 
   const onCancel = () => {
     setStaged(settings);
+    setSaveError(null);
   };
 
   const onPickNewDataFolder = async () => {
     const picked = await open({ directory: true, multiple: false });
     if (!picked || typeof picked !== "string") return;
-    // For Slice 7a, the settings-page "change" flow only accepts an existing
-    // Snippet folder (importing) — creating new at a fresh path is the
-    // onboarding flow and isn't repeated here. SPEC §11 still covers reset
-    // via clearing bootstrap, but that's an out-of-band recovery path.
     try {
       const status = await invoke<DataFolderStatus>("validate_path_for_import", {
         path: picked,
@@ -121,6 +123,27 @@ export function Settings({ onClose }: Props) {
 
         <div className="space-y-4 rounded border border-zinc-200 bg-white p-5">
           <SettingsRow
+            title="全局热键"
+            description={
+              <>
+                按下组合键来录制；Esc 取消。需要至少一个修饰键（Ctrl / Alt / Shift / Cmd）+
+                普通键，或单独的 F1–F24 功能键。
+              </>
+            }
+          >
+            <HotkeyInput
+              value={staged.hotkey}
+              onChange={(hotkey) => {
+                setStaged({ ...staged, hotkey });
+                setSaveError(null);
+              }}
+              disabled={saving}
+            />
+          </SettingsRow>
+
+          <hr className="border-zinc-100" />
+
+          <SettingsRow
             title="自动粘贴"
             description="复制完成后，自动切回原焦点窗口并模拟 Ctrl+V。失败时会降级为仅剪贴板 + 提示手动粘贴。"
           >
@@ -165,8 +188,21 @@ export function Settings({ onClose }: Props) {
         </div>
 
         <div className="mt-3 rounded border border-zinc-200 bg-zinc-50 p-3 text-xs leading-relaxed text-zinc-500">
-          其它设置（热键、主题）将在 Slice 7b / 7c 中加入。
+          其它设置（主题）将在 Slice 7c 中加入。
         </div>
+
+        {saveError && (
+          <div className="mt-3 flex items-start gap-2 rounded border border-red-200 bg-red-50 px-3 py-2 text-xs text-red-700">
+            <AlertTriangle size={14} className="mt-0.5 shrink-0" />
+            <div className="leading-relaxed">
+              <div className="font-medium">保存失败</div>
+              <div className="mt-0.5 break-all">{saveError}</div>
+              <div className="mt-1 text-red-600/80">
+                设置未持久化；旧值仍生效。请修改后重试。
+              </div>
+            </div>
+          </div>
+        )}
 
         <div className="mt-4 flex justify-end gap-2">
           <button
