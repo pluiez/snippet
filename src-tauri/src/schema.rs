@@ -87,6 +87,17 @@ pub enum ThemePreference {
 pub struct Bootstrap {
     pub schema_version: u32,
     pub data_folder_path: Option<String>,
+    // Legacy bootstrap.json files (written before Slice 7a) don't have this
+    // field. They were written by users who had already passed the implicit
+    // first-launch init, so absence means "yes, complete". A truly fresh
+    // install hits `Default::default()` (not serde deserialization), which
+    // returns false → triggers onboarding.
+    #[serde(default = "default_onboarding_complete_for_legacy")]
+    pub onboarding_complete: bool,
+}
+
+fn default_onboarding_complete_for_legacy() -> bool {
+    true
 }
 
 impl Default for Bootstrap {
@@ -94,8 +105,27 @@ impl Default for Bootstrap {
         Self {
             schema_version: CURRENT_SCHEMA_VERSION,
             data_folder_path: None,
+            onboarding_complete: false,
         }
     }
+}
+
+/// Result of inspecting a candidate folder for the onboarding flow.
+/// SPEC §11 三选一: "default new" / "custom new" / "import existing".
+#[derive(Clone, Debug, Serialize, Deserialize, TS, PartialEq, Eq)]
+#[ts(export, export_to = "../src/lib/bindings/")]
+#[serde(rename_all = "camelCase")]
+pub enum DataFolderStatus {
+    /// Path doesn't exist on disk yet — OK for "new" flow.
+    DoesNotExist,
+    /// Path exists, is a directory, and has no entries — OK for "new" flow.
+    Empty,
+    /// Path exists with Snippet structure markers (templates/ subdir or any
+    /// known config file) — OK for "import" flow.
+    ValidSnippet,
+    /// Path exists with content that doesn't look like Snippet data —
+    /// rejected by both flows to avoid overwriting unrelated files.
+    OccupiedByOther,
 }
 
 #[derive(Clone, Debug, Serialize, Deserialize, TS)]

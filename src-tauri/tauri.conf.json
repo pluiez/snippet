@@ -32,6 +32,15 @@
         "visible": false,
         "skipTaskbar": true,
         "resizable": false
+      },
+      {
+        "label": "onboarding",
+        "title": "Snippet 初始设置",
+        "width": 560,
+        "height": 480,
+        "center": true,
+        "resizable": false,
+        "visible": false
       }
     ],
     "security": {

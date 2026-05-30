@@ -373,6 +373,80 @@
 - macOS / Linux 平台的 auto-paste 没实现（stub 返回错误，会全降级到 clipboard-only）
 - 部分 app（Sublime Text、可能 Vim / 游戏 launcher / 自绘 Win32 工具）会忽略 `SendInput` 模拟的 Ctrl+V。enigo 在 API 层返回成功，backend `outcome.pasted=true`，前端不显示 toast，但目标 app 实际没收到 → false-positive。无法在 backend 检测。用户需手动 Ctrl+V（剪贴板内容还在）。这是 OS 级输入模拟的固有限制，非 bug
 
+### Slice 7a — Onboarding 流程 + dataFolderPath 设置入口 🚧 实现完成，待验证
+
+实施日期：2026-05-30。**Slice 7 拆分为 7a / 7b / 7c**（详见 plan 与本文件下方"Spec 决议日志"E1）。
+
+**新依赖**：
+
+- `tauri-plugin-dialog` v2（Cargo + npm `@tauri-apps/plugin-dialog`）— 文件夹选择器
+- `tempfile` v3（dev-deps）— `onboarding.rs` 单测用
+
+**已落地（后端）**：
+
+- 新模块 `src-tauri/src/onboarding.rs`：`classify_path()` + `needs_onboarding()` 纯函数 + 6 个 `#[test]`（DoesNotExist / Empty / ValidSnippet via templates dir / ValidSnippet via settings.json / OccupiedByOther / 文件不是目录）
+- `schema.rs`:
+  - `Bootstrap` 加 `onboarding_complete: bool`（默认 false），`#[serde(default = "default_onboarding_complete_for_legacy")]` 让旧 bootstrap.json（无此字段）反序列化为 `true`，避免老用户被强拉去重做 onboarding
+  - 新 enum `DataFolderStatus`（`DoesNotExist` / `Empty` / `ValidSnippet` / `OccupiedByOther`），camelCase，PartialEq+Eq
+- **lib.rs 两阶段启动改造**（本切片最大结构改动）：
+  - `init_app_state` 拆为 `init_bootstrap`（Phase A，始终跑）+ `init_full_state`（Phase B，构 AppState）
+  - `register_default_hotkey` 抽成独立函数（Slice 7b 替换为可配置版本）
+  - 新 `pub fn complete_onboarding(app, set_data_folder)`：写 bootstrap → init_full_state → manage → register hotkey → hide onboarding 窗口。给 try_state 加 idempotency 保护
+  - setup 中：先 init_bootstrap → 总是建 tray（tray click handler 在 AppState 未 manage 时 fallback 到显示 onboarding 窗口）→ 按 needs_onboarding 分支：是 → 显示 onboarding 窗口、Phase B 推迟；否 → 走 Phase B + 注册热键
+  - close handler 加 `"onboarding"` 分支 → `app.exit(0)`（X = 退出 app；与 main/palette 的 hide 语义不同）
+  - single-instance handler 在 AppState 未 manage 时也 fallback 到显示 onboarding（避免双开试图打开主窗口）
+  - ExitRequested 已有 try_state 保护（Slice 5 已加），onboarding cancel 退出时不跑 GC
+- 新 IPC 命令（9 个，注册在 `invoke_handler`）：
+  - `default_data_folder() -> String` —— 解析 OS 默认路径给 UI 显示
+  - `current_data_folder() -> String` —— 返回当前正用的 dataFolder（仅 AppState 已 manage 时可用）
+  - `validate_path_for_new(path) -> DataFolderStatus` / `validate_path_for_import(path) -> DataFolderStatus`
+  - `complete_onboarding_default()` / `complete_onboarding_custom_new(path)` / `complete_onboarding_import(path)` —— 写 bootstrap + 调 `crate::complete_onboarding`
+  - `set_data_folder_path(path: Option<String>)` —— 设置页改路径专用，只动 bootstrap 不重启
+  - `exit_app()` —— 设置页改 dataFolderPath 后用户确认退出时用
+
+**已落地（前端）**：
+
+- 新 Tauri 窗口 `onboarding` (560×480, center, resizable: false, visible: false) in `tauri.conf.json`
+- `capabilities/default.json` windows 加 `"onboarding"`，permissions 加 `"dialog:default"`
+- 新 `src/Onboarding.tsx`：三 OptionCard 选 default / customNew / import，每张卡选中后展开内部 PathPicker（dialog 选目录 → validate → 显示路径 + 状态徽章），底部"开始使用" amber 按钮按校验状态启停
+- `src/main.tsx`：label === "onboarding" 时只渲染 `<Onboarding />`，跳过 SettingsProvider / ColorMapsProvider（避免在 AppState 未 manage 时 spam `get_settings` 错误）
+- `src/Settings.tsx`：从 Slice 6 桩扩展，加"数据文件夹"行（显示 `current_data_folder` + 更改按钮 → dialog → validate_path_for_import → ConfirmDialog → set_data_folder_path → 浏览器 confirm "是否立即退出" → `exit_app`）。改路径仅接受已有 Snippet 数据（创建新空库走 onboarding 流程，不在设置页里重复）
+- `src/lib/bindings/DataFolderStatus.ts` placeholder（首次 `pnpm bindings` 后被覆盖；同时会新生成完整 `Bootstrap.ts`）
+
+**SPEC §13 不变量保证**：
+
+- 不变量 9（窗口互斥）：第三窗口 onboarding 仅在未完成 onboarding 时显示；main 不可见 + palette 未注册热键 → 互斥规则自然成立。完成 onboarding 后 onboarding 立即 hide，回到 main/palette 二者互斥的 Slice 4 状态
+
+**待用户验证**：
+
+⚠️ **首次跑前必做**：
+1. `pnpm install`（安装 `@tauri-apps/plugin-dialog`）
+2. `pnpm bindings`（编译 + 触发 ts-rs 重新生成 `Bootstrap.ts` / `DataFolderStatus.ts`，验证 dialog 插件、tempfile dev-dep、新模块、所有 IPC 命令)
+3. `pnpm tauri dev` 启动
+
+验收场景：
+
+1. **首次启动 (default 路径)**：清空 `%APPDATA%\Snippet\` → 启动 → onboarding 窗口出现，三个 OptionCard 默认选中"使用默认路径"+ 显示默认路径文字 → 点"开始使用" → 窗口关闭 → 托盘有图标 → 点托盘 → 主窗口空状态 → `%APPDATA%\Snippet\bootstrap.json` 含 `"onboardingComplete": true, "dataFolderPath": null` + `templates/` 等空结构生成
+2. **首次启动 (自定义新建)**：清空 → 启动 onboarding → 选"指定路径新建" → 选 `D:\test-snippet`（空目录）→ 显示绿色 "目录为空，可以使用" → "开始使用" → 主窗口启动 → `bootstrap.json` 含 `"dataFolderPath": "D:\\test-snippet"`
+3. **首次启动 (自定义新建-冲突拒绝)**：选"指定路径新建" → 选 `D:\Downloads`（有内容）→ 显示红色 "目标路径已有内容..." → 按钮 disabled
+4. **首次启动 (导入)**：先在 `D:\backup\` 手动放 sample 模板 + `templates/` 目录 → 清空 `%APPDATA%\Snippet\` 启动 → onboarding → 选"从已有路径导入" → 选 `D:\backup\` → 绿色 "检测到 Snippet 数据" → "开始使用" → 主窗口显示导入的模板
+5. **导入-路径无效**：选"从已有路径导入" → 选空目录 → 红色 "该路径不是 Snippet 数据文件夹..." → disabled
+6. **onboarding X 掉**：onboarding 期间点 X → app 直接退出（dev console: 无 GC 日志）→ 重启仍弹 onboarding
+7. **设置页改路径**：完成 onboarding 后，主窗口设置页看到"数据文件夹"行显示当前路径 → 点"更改..." → 选另一个已有 Snippet 路径 → ConfirmDialog "更改数据文件夹" 弹出 → 点"保存" → 浏览器 confirm "是否立即退出" → 选"确定" → app 退出 → 手动重启 → 使用新路径
+8. **旧 bootstrap.json 兼容**：现有开发环境的 bootstrap.json（不含 onboardingComplete 字段）→ 启动 → **不弹** onboarding（serde 默认值是 true）→ 正常进入主窗口 → Slice 1-6 全部功能照常工作
+
+**实施期间发现 + 修的问题**：
+
+- Onboarding 期间 AppState 未 manage，但 single-instance 二次启动 handler 默认会调 `palette::show_main_window`（其内部用 try_state，不会 panic 但语义不对）。改为先检测 try_state，未 manage 时 fallback 显示 onboarding 窗口。tray click 也同处理
+- ts-rs 的 `DataFolderStatus` 在 camelCase 下变成 `"doesNotExist" | "empty" | "validSnippet" | "occupiedByOther"`，TS 字符串字面量类型 —— 校验时不用 import enum，直接用 string compare（如 `customStatus === "validSnippet"`）
+
+**已知坑 / 留给后续切片**：
+
+- 设置页改 dataFolderPath 只接受已有 Snippet 数据。如果想"指定空路径新建作为新数据集"，目前只能：清掉 bootstrap.json → 重启 → 走 onboarding。这个 punch-list 可放 Phase 3 工作流 B
+- onboarding 期间 dev console 还是会因 React StrictMode 双 render 而看到 `default_data_folder` 调两次。无害
+- `exit_app` IPC 是新加的（plan 没列），Slice 7b 也会需要它做"改热键失败需重启"路径（实际上 7b 是即时 re-register 不需要重启，所以可能不会用到）
+- `validate_path_for_import` 检测 Snippet 结构靠几个 marker 文件（templates/、settings.json 等任一）；如果用户的备份目录刚好只有空 templates/ 子目录，也会被认作 ValidSnippet（合理 —— 那个目录确实"是" Snippet folder，只是没模板）
+
 ## Phase 3 — 打磨与发布
 
 未开始。
@@ -388,3 +462,4 @@
 - **B 系列**（孤儿变量 / staticDefault 失效 / 类型变更迁移 / displayName 唯一 / body 编辑器未识别占位符 / 剪贴板互斥 transient 语义）：未决，留到对应切片处理。
 - **C 系列**（必填+剪贴板空死锁 / watcher+颜色页并发 / autoPaste 失败检测 / migration 失败 / 剪贴板读失败回退）：边做边补。
 - **D 系列**（"对话框" 措辞、§13 不变量 7 测试稳定性、ARCHITECTURE §6 GC 周期归类）：未处理。
+- **E1**（2026-05-30，Slice 7a 开工时）：原 Slice 7 拆为 7a / 7b / 7c —— 7a Onboarding + dataFolderPath、7b 完整设置页 hotkey + autoPaste 整合、7c 主题切换 + 全组件 dark 适配。原因：原切片范围过大（~2 天），单切完成前无法分段 demo / 回滚；blast radius 集中在三块独立基础设施，拆开后每块可独立 tag、独立验收。Onboarding 引入两阶段启动（Phase A bootstrap → Phase B AppState lazy manage）作为整个 7 系列的结构前置，落地在 lib.rs。TASKS.md 拆分写入推迟到 7c 完成后一次性更新（避免文档/代码不同步窗口）。

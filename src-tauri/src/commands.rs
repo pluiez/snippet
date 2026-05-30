@@ -3,11 +3,13 @@
 
 use crate::auto_paste;
 use crate::color;
+use crate::onboarding;
 use crate::palette;
+use crate::paths;
 use crate::render;
 use crate::schema::{
-    Settings, TagColorMap, Template, Variable, VariableColorMap, VariableType,
-    CURRENT_SCHEMA_VERSION,
+    Bootstrap, DataFolderStatus, Settings, TagColorMap, Template, Variable, VariableColorMap,
+    VariableType, CURRENT_SCHEMA_VERSION,
 };
 use crate::search;
 use crate::state::AppState;
@@ -560,6 +562,114 @@ pub fn save_settings(
 
     app.emit(SETTINGS_CHANGED_EVENT, ())
         .map_err(|e| format!("emit failed: {e}"))?;
+    Ok(())
+}
+
+// --- Onboarding commands -------------------------------------------------------
+//
+// SPEC §11 三选一: default-path-new / custom-path-new / import-existing.
+// These are usable BEFORE AppState is managed (during first-launch); they take
+// AppHandle, not State<AppState>. After `complete_onboarding_*` succeeds, the
+// shared `crate::complete_onboarding` helper builds AppState and registers it.
+
+#[tauri::command]
+pub fn default_data_folder(app: AppHandle) -> Result<String, String> {
+    paths::default_data_folder(&app)
+        .map(|p| p.to_string_lossy().to_string())
+        .map_err(|e| format!("resolving default data folder: {e:#}"))
+}
+
+/// Return the resolved data folder currently in use (custom path from
+/// bootstrap, or OS default if bootstrap doesn't specify one). Used by the
+/// Settings page to display the active path.
+#[tauri::command]
+pub fn current_data_folder(state: State<'_, AppState>) -> Result<String, String> {
+    Ok(state.data_folder.to_string_lossy().to_string())
+}
+
+#[tauri::command]
+pub fn validate_path_for_new(path: String) -> Result<DataFolderStatus, String> {
+    let p = std::path::PathBuf::from(&path);
+    onboarding::classify_path(&p).map_err(|e| format!("classify failed: {e:#}"))
+}
+
+#[tauri::command]
+pub fn validate_path_for_import(path: String) -> Result<DataFolderStatus, String> {
+    let p = std::path::PathBuf::from(&path);
+    onboarding::classify_path(&p).map_err(|e| format!("classify failed: {e:#}"))
+}
+
+#[tauri::command]
+pub fn complete_onboarding_default(app: AppHandle) -> Result<(), String> {
+    crate::complete_onboarding(&app, |b| {
+        b.data_folder_path = None;
+    })
+    .map_err(|e| format!("complete_onboarding_default failed: {e:#}"))
+}
+
+#[tauri::command]
+pub fn complete_onboarding_custom_new(app: AppHandle, path: String) -> Result<(), String> {
+    let p = std::path::PathBuf::from(&path);
+    let status =
+        onboarding::classify_path(&p).map_err(|e| format!("classify failed: {e:#}"))?;
+    if !matches!(
+        status,
+        DataFolderStatus::DoesNotExist | DataFolderStatus::Empty
+    ) {
+        return Err(format!(
+            "path not eligible for new install (status: {:?})",
+            status
+        ));
+    }
+    crate::complete_onboarding(&app, move |b| {
+        b.data_folder_path = Some(path);
+    })
+    .map_err(|e| format!("complete_onboarding_custom_new failed: {e:#}"))
+}
+
+#[tauri::command]
+pub fn complete_onboarding_import(app: AppHandle, path: String) -> Result<(), String> {
+    let p = std::path::PathBuf::from(&path);
+    let status =
+        onboarding::classify_path(&p).map_err(|e| format!("classify failed: {e:#}"))?;
+    if status != DataFolderStatus::ValidSnippet {
+        return Err(format!(
+            "path is not a valid Snippet folder (status: {:?})",
+            status
+        ));
+    }
+    crate::complete_onboarding(&app, move |b| {
+        b.data_folder_path = Some(path);
+    })
+    .map_err(|e| format!("complete_onboarding_import failed: {e:#}"))
+}
+
+/// Quit the app. Used by the Settings page after changing dataFolderPath
+/// (SPEC §12: change requires a restart). Bypasses the close-handler hide
+/// semantics that main/palette windows use.
+#[tauri::command]
+pub fn exit_app(app: AppHandle) -> Result<(), String> {
+    info!("exit_app requested from frontend");
+    app.exit(0);
+    Ok(())
+}
+
+#[tauri::command]
+pub fn set_data_folder_path(app: AppHandle, path: Option<String>) -> Result<(), String> {
+    let boot_path = paths::bootstrap_path(&app)
+        .map_err(|e| format!("resolving bootstrap path: {e:#}"))?;
+    if !boot_path.exists() {
+        return Err("bootstrap.json not found — onboarding must be completed first".to_string());
+    }
+    let mut bootstrap: Bootstrap =
+        storage::read_json(&boot_path).map_err(|e| format!("reading bootstrap: {e:#}"))?;
+    bootstrap.data_folder_path = path.clone();
+    storage::atomic_write(&boot_path, &bootstrap)
+        .map_err(|e| format!("writing bootstrap: {e:#}"))?;
+    info!(
+        ?path,
+        "bootstrap.data_folder_path updated; restart required to take effect"
+    );
     Ok(())
 }
 
