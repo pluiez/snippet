@@ -164,3 +164,215 @@ pub fn delete_template(templates_dir: &Path, id: &Uuid) -> Result<()> {
     }
     Ok(())
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::schema::{Bootstrap, Settings, Variable, VariableType};
+    use tempfile::tempdir;
+
+    fn mk_template(name: &str) -> Template {
+        Template {
+            schema_version: CURRENT_SCHEMA_VERSION,
+            id: Uuid::new_v4(),
+            display_name: name.to_string(),
+            body: "body".to_string(),
+            variables: vec![],
+            tags: vec![],
+            is_pinned: false,
+            created_at: "2026-05-31T00:00:00Z".to_string(),
+            updated_at: "2026-05-31T00:00:00Z".to_string(),
+            last_used_at: None,
+            use_count: 0,
+        }
+    }
+
+    /// `atomic_write` creates missing parent directories so a fresh data
+    /// folder doesn't need to be pre-seeded by the caller.
+    #[test]
+    fn atomic_write_creates_parent_dirs() {
+        let tmp = tempdir().unwrap();
+        let path = tmp.path().join("a/b/c/file.json");
+        let value = Settings::default();
+        atomic_write(&path, &value).unwrap();
+        assert!(path.exists(), "file should exist after atomic_write");
+    }
+
+    /// `atomic_write` → `read_json` round-trips a typed value identically.
+    #[test]
+    fn atomic_write_round_trips_value() {
+        let tmp = tempdir().unwrap();
+        let path = tmp.path().join("settings.json");
+        let mut value = Settings::default();
+        value.hotkey = "Ctrl+Alt+K".to_string();
+        value.auto_paste = true;
+        atomic_write(&path, &value).unwrap();
+        let loaded: Settings = read_json(&path).unwrap();
+        assert_eq!(loaded.hotkey, "Ctrl+Alt+K");
+        assert!(loaded.auto_paste);
+        assert_eq!(loaded.schema_version, CURRENT_SCHEMA_VERSION);
+    }
+
+    /// `load_or_init` on a non-existent file writes the default and returns
+    /// `recovered=false` — this is first-launch init, not recovery.
+    #[test]
+    fn load_or_init_creates_default_when_missing() {
+        let tmp = tempdir().unwrap();
+        let path = tmp.path().join("bootstrap.json");
+        let (value, recovered) =
+            load_or_init(&path, Bootstrap::default, |b| b.schema_version).unwrap();
+        assert!(!recovered, "missing file is not a recovery");
+        assert_eq!(value.schema_version, CURRENT_SCHEMA_VERSION);
+        assert!(path.exists(), "default file should be written to disk");
+    }
+
+    /// `load_or_init` replaces corrupt JSON with the default and signals
+    /// `recovered=true` so callers can surface a startup warning toast.
+    #[test]
+    fn load_or_init_recovers_corrupt_json() {
+        let tmp = tempdir().unwrap();
+        let path = tmp.path().join("settings.json");
+        std::fs::write(&path, b"{not valid json").unwrap();
+        let (value, recovered) =
+            load_or_init(&path, Settings::default, |s| s.schema_version).unwrap();
+        assert!(recovered, "corrupt JSON must be flagged as recovered");
+        assert_eq!(value.schema_version, CURRENT_SCHEMA_VERSION);
+        // File on disk should now be the default, not the corrupt content.
+        let reread = std::fs::read_to_string(&path).unwrap();
+        assert!(reread.contains("schemaVersion"));
+    }
+
+    /// `load_or_init` also recovers when the schema version doesn't match —
+    /// no silent half-loaded data when a future format hits an older binary
+    /// or vice versa.
+    #[test]
+    fn load_or_init_recovers_version_mismatch() {
+        let tmp = tempdir().unwrap();
+        let path = tmp.path().join("settings.json");
+        let bogus = r#"{"schemaVersion": 99, "hotkey": "Ctrl+Alt+Space", "autoPaste": false, "theme": "system"}"#;
+        std::fs::write(&path, bogus).unwrap();
+        let (value, recovered) =
+            load_or_init(&path, Settings::default, |s| s.schema_version).unwrap();
+        assert!(recovered, "version mismatch must be flagged as recovered");
+        assert_eq!(value.schema_version, CURRENT_SCHEMA_VERSION);
+    }
+
+    /// `load_templates` loads every valid `.json` file in the directory and
+    /// reports `invalid_count=0` when none are malformed.
+    #[test]
+    fn load_templates_loads_valid_files() {
+        let tmp = tempdir().unwrap();
+        let dir = tmp.path().join("templates");
+        std::fs::create_dir(&dir).unwrap();
+        let t1 = mk_template("a");
+        let t2 = mk_template("b");
+        save_template(&dir, &t1).unwrap();
+        save_template(&dir, &t2).unwrap();
+
+        let (map, invalid) = load_templates(&dir).unwrap();
+        assert_eq!(map.len(), 2);
+        assert_eq!(invalid, 0);
+        assert!(map.contains_key(&t1.id));
+        assert!(map.contains_key(&t2.id));
+    }
+
+    /// Malformed JSON in `templates/` is moved to `templates/.invalid/` and
+    /// counted toward `invalid_count` so the startup-warning toast can show
+    /// the right number, while valid neighbors still load normally.
+    #[test]
+    fn load_templates_moves_invalid_to_subdir() {
+        let tmp = tempdir().unwrap();
+        ensure_data_folder_structure(tmp.path()).unwrap();
+        let dir = tmp.path().join("templates");
+
+        let good = mk_template("good");
+        save_template(&dir, &good).unwrap();
+        let bad_path = dir.join("bad.json");
+        std::fs::write(&bad_path, b"{not valid").unwrap();
+
+        let (map, invalid) = load_templates(&dir).unwrap();
+        assert_eq!(map.len(), 1, "valid template should still load");
+        assert_eq!(invalid, 1, "one invalid file expected");
+        assert!(
+            !bad_path.exists(),
+            "bad file should be moved out of templates/"
+        );
+        let invalid_dest = dir.join(".invalid").join("bad.json");
+        assert!(invalid_dest.exists(), "bad file should land in .invalid/");
+    }
+
+    /// `save_template` writes a JSON file that `load_templates` reads back
+    /// with all fields preserved — including variables, tags, and metadata.
+    #[test]
+    fn save_template_then_load_round_trip() {
+        let tmp = tempdir().unwrap();
+        let dir = tmp.path().join("templates");
+        std::fs::create_dir(&dir).unwrap();
+
+        let mut t = mk_template("round-trip");
+        let guid = Uuid::new_v4();
+        t.body = format!("hello {{{}}}", guid);
+        t.tags = vec!["urgent".to_string(), "work".to_string()];
+        t.is_pinned = true;
+        t.use_count = 5;
+        t.variables.push(Variable {
+            guid,
+            display_name: "name".to_string(),
+            variable_type: VariableType::Text,
+            options: None,
+            required: true,
+            fill_from_clipboard: false,
+            remember_last_used: true,
+            static_default: Some("default".to_string()),
+        });
+
+        save_template(&dir, &t).unwrap();
+        let (map, _) = load_templates(&dir).unwrap();
+        let loaded = map.get(&t.id).expect("template not found after load");
+
+        assert_eq!(loaded.display_name, "round-trip");
+        assert_eq!(loaded.body, t.body);
+        assert_eq!(loaded.tags, vec!["urgent", "work"]);
+        assert!(loaded.is_pinned);
+        assert_eq!(loaded.use_count, 5);
+        assert_eq!(loaded.variables.len(), 1);
+        assert_eq!(loaded.variables[0].display_name, "name");
+        assert!(loaded.variables[0].required);
+        assert_eq!(
+            loaded.variables[0].static_default.as_deref(),
+            Some("default")
+        );
+        assert!(loaded.variables[0].remember_last_used);
+    }
+
+    /// `delete_template` removes the file from disk; subsequent
+    /// `load_templates` returns a map without that template.
+    #[test]
+    fn delete_template_removes_file() {
+        let tmp = tempdir().unwrap();
+        let dir = tmp.path().join("templates");
+        std::fs::create_dir(&dir).unwrap();
+
+        let t = mk_template("doomed");
+        save_template(&dir, &t).unwrap();
+        assert!(template_path(&dir, &t.id).exists());
+
+        delete_template(&dir, &t.id).unwrap();
+        assert!(!template_path(&dir, &t.id).exists());
+
+        let (map, _) = load_templates(&dir).unwrap();
+        assert!(!map.contains_key(&t.id));
+    }
+
+    /// `ensure_data_folder_structure` creates `templates/` and
+    /// `templates/.invalid/` idempotently so callers don't need to pre-check.
+    #[test]
+    fn ensure_data_folder_structure_creates_dirs() {
+        let tmp = tempdir().unwrap();
+        ensure_data_folder_structure(tmp.path()).unwrap();
+        assert!(tmp.path().join("templates").is_dir());
+        assert!(tmp.path().join("templates").join(".invalid").is_dir());
+        // Idempotent: running twice doesn't error.
+        ensure_data_folder_structure(tmp.path()).unwrap();
+    }
+}

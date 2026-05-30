@@ -698,15 +698,15 @@
 - 设置页"指定空路径新建"（需大量改动，优先级低）
 - 已知 OS 保留热键列表提示（优先级低）
 
-### 工作流 C — 测试与发布 🚧 §13 测试基础设施完成
+### 工作流 C — 测试与发布 🚧 §13 + storage 测试基础设施完成
 
 收尾日期：2026-05-31（部分）。
 
-**已落地（§13 不变量单测基础设施）**：
+**已落地（§13 不变量单测 + storage 集成测试）**：
 
-`cargo test --lib` 共 68 测试通过（开工前 33：`hotkey` 12 + `onboarding` 6 + `export_bindings` 15；本工作流新增 35）。10/12 §13 不变量由单测覆盖；4（剪贴板互斥）和 9（窗口互斥）性质所致不适合纯 Rust 单测（前者前端 UI 行为，后者 Tauri runtime 依赖），留集成测试与 smoke test 覆盖。详细覆盖映射见 HANDOFF.md "§13 核心不变量清单"。
+`cargo test --lib` 共 78 测试通过（开工前 33：`hotkey` 12 + `onboarding` 6 + `export_bindings` 15；本工作流新增 45：§13 单测 35 + storage 集成测试 10）。10/12 §13 不变量由单测覆盖；4（剪贴板互斥）和 9（窗口互斥）性质所致不适合纯 Rust 单测（前者前端 UI 行为，后者 Tauri runtime 依赖），留 smoke test 覆盖。详细覆盖映射见 HANDOFF.md "§13 核心不变量清单"。
 
-按文件新增：
+按文件新增（§13 不变量单测）：
 
 | 文件 | 新增测试 | 覆盖不变量 |
 |---|---|---|
@@ -716,6 +716,12 @@
 | `search.rs` test mod（pinyin 部分） | 5 | 12 |
 | `fill.rs` 新模块（src + test） | 10 | 3 |
 
+按文件新增（storage 层集成测试）：
+
+| 文件 | 新增测试 | 覆盖行为 |
+|---|---|---|
+| `storage.rs` test mod | 10 | `atomic_write` 自动建父目录 + 类型 round-trip；`load_or_init` 三态（missing→default、损坏 JSON→default+recovered、schemaVersion 不匹配→default+recovered）；`load_templates` 加载有效 + 损坏文件移到 `.invalid/` 并计数；`save_template`→`load_templates` 全字段 round-trip（含 variables / tags / 元数据）；`delete_template` 移除文件；`ensure_data_folder_structure` 创建必需目录且幂等 |
+
 **实施期间重构 / bug 修复**：
 
 1. **新建 `src-tauri/src/fill.rs` 模块**：从 `commands.rs` 抽出 `compute_initial_value` + `is_valid_for_variable`，让 SPEC §4.5 优先级层叠逻辑独立单测。`prepare_fill_dialog` IPC 改调 `fill::compute_initial_value`，行为零变化
@@ -723,12 +729,13 @@
 3. **加 `state::AppState::for_test()` helper**：`#[cfg(test)]` 限定，用 `tempfile::tempdir()` 作 data_folder 构造空 state，让 `color::reconcile_colors` 等依赖 state 的逻辑可单测
 4. **修 `color::random_oklch` round-trip 精度 bug**（F1 决议）：原阈值 `>= 4.5` 在生成器内部满足，但 `format!("{l:.3} {c:.3} {h:.1}")` 截断后 re-parse 出来的 contrast 可能掉到 4.499（如 `oklch(0.583 0.121 327.2)` 实测），违反 SPEC §13 不变量 10 的实际渲染语义（用户实际看到的是 stored 形式）。改为 `>= CONTRAST_TARGET (4.5) + CONTRAST_GUARD (0.05)`，1000-sample sweep 稳过
 
-**剩余工作流 C 项目**（未开始）：
+**剩余工作流 C 项目**：
 
-- 关键 IPC 命令族集成测试（`save_template` round-trip / `apply_template` outcome / `prepare_fill_dialog` 全 case）
 - Windows `.msi` 打包（含 `tauri.conf.json` bundle identifier 从占位 `app.snippet` 换为真实反向域名）
 - 代码签名 v1 跳过（unsigned `.msi`，SmartScreen 会有首次启动警告但功能完整）
 - 手动 smoke test：完整安装 → onboarding → 使用流程 → 设置变更 → 卸载 → 重装（数据保留）
+
+注：原"关键 IPC 命令族集成测试"清单——`save_template` round-trip 已通过 storage 集成测试覆盖；`apply_template` 的 render+state-update 部分由 `fill.rs` + `render.rs` + storage 测试间接覆盖，剪贴板写入 / autoPaste 依赖 Tauri runtime，留 smoke test；`prepare_fill_dialog` 的优先级层叠在 `fill.rs` 单测全覆盖。
 
 ---
 
