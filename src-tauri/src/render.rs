@@ -72,3 +72,121 @@ pub fn body_for_search(template: &Template) -> String {
         })
         .into_owned()
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::schema::{Template, Variable, VariableType, CURRENT_SCHEMA_VERSION};
+
+    fn mk_template(body: &str, variables: Vec<Variable>) -> Template {
+        Template {
+            schema_version: CURRENT_SCHEMA_VERSION,
+            id: Uuid::new_v4(),
+            display_name: "t".to_string(),
+            body: body.to_string(),
+            variables,
+            tags: vec![],
+            is_pinned: false,
+            created_at: String::new(),
+            updated_at: String::new(),
+            last_used_at: None,
+            use_count: 0,
+        }
+    }
+
+    fn mk_variable(name: &str) -> Variable {
+        Variable {
+            guid: Uuid::new_v4(),
+            display_name: name.to_string(),
+            variable_type: VariableType::Text,
+            options: None,
+            required: false,
+            fill_from_clipboard: false,
+            remember_last_used: false,
+            static_default: None,
+        }
+    }
+
+    /// SPEC §13 invariant 1: variable GUID is stable. Renaming a variable's
+    /// displayName must not break placeholder resolution — body and values are
+    /// both keyed by GUID, not displayName. Verified here by binding values
+    /// to the GUID and asserting render still resolves after a rename of the
+    /// variable struct.
+    #[test]
+    fn invariant_1_render_resolves_by_guid_not_displayname() {
+        let mut var = mk_variable("Language");
+        let guid = var.guid;
+        let body = format!("hello {{{}}}", guid);
+        let mut values = HashMap::new();
+        values.insert(guid, "world".to_string());
+
+        assert_eq!(render(&body, &values), "hello world");
+
+        var.display_name = "语言".to_string();
+        assert_eq!(render(&body, &values), "hello world");
+    }
+
+    /// SPEC §13 invariant 1 (search-index side): renaming a variable's
+    /// displayName updates the displayName that appears in the search
+    /// haystack the next time `body_for_search` is computed — the GUID in
+    /// body acts as a stable handle into the variable list.
+    #[test]
+    fn invariant_1_body_for_search_reflects_renamed_variable() {
+        let mut var = mk_variable("Language");
+        let guid = var.guid;
+        let body = format!("t {{{}}}", guid);
+
+        let before = mk_template(&body, vec![var.clone()]);
+        assert_eq!(body_for_search(&before), "t {Language}");
+
+        var.display_name = "语言".to_string();
+        let after = mk_template(&body, vec![var]);
+        assert_eq!(body_for_search(&after), "t {语言}");
+    }
+
+    /// SPEC §13 invariant 2 (downstream): if the body still contains a
+    /// placeholder whose variable has been deleted, render returns empty for
+    /// that placeholder rather than crashing or leaking the GUID literal. The
+    /// editor cleans body on variable deletion (frontend); this asserts the
+    /// backend doesn't trust that cleanup blindly.
+    #[test]
+    fn invariant_2_orphan_placeholder_renders_empty() {
+        let orphan = Uuid::new_v4();
+        let body = format!("a{{{}}}b", orphan);
+        let values: HashMap<Uuid, String> = HashMap::new();
+        assert_eq!(render(&body, &values), "ab");
+    }
+
+    /// body_for_search keeps orphan placeholders verbatim (no value to
+    /// substitute) so the search index still has something to grep against.
+    #[test]
+    fn body_for_search_keeps_orphan_verbatim() {
+        let orphan = Uuid::new_v4();
+        let body = format!("a {{{}}} b", orphan);
+        let template = mk_template(&body, vec![]);
+        assert_eq!(body_for_search(&template), body);
+    }
+
+    /// Non-UUID `{...}` content is preserved verbatim so literal braces in
+    /// snippets aren't accidentally rewritten.
+    #[test]
+    fn non_uuid_braces_preserved() {
+        let values: HashMap<Uuid, String> = HashMap::new();
+        assert_eq!(render("{not-a-uuid}", &values), "{not-a-uuid}");
+        assert_eq!(render("a{b}c", &values), "a{b}c");
+    }
+
+    /// Variables surface in the order their GUIDs first appear in body;
+    /// duplicates collapse, orphan placeholders are excluded.
+    #[test]
+    fn order_variables_by_appearance() {
+        let v1 = mk_variable("first");
+        let v2 = mk_variable("second");
+        let body = format!("{{{}}} - {{{}}} - {{{}}}", v2.guid, v1.guid, v2.guid);
+        let template = mk_template(&body, vec![v1.clone(), v2.clone()]);
+        let ordered = order_variables_by_body_appearance(&template);
+        assert_eq!(ordered.len(), 2);
+        assert_eq!(ordered[0].guid, v2.guid);
+        assert_eq!(ordered[1].guid, v1.guid);
+    }
+}

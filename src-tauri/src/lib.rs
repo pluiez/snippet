@@ -1,6 +1,7 @@
 mod auto_paste;
 mod color;
 mod commands;
+mod fill;
 mod hotkey;
 mod onboarding;
 mod palette;

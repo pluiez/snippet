@@ -698,9 +698,37 @@
 - 设置页"指定空路径新建"（需大量改动，优先级低）
 - 已知 OS 保留热键列表提示（优先级低）
 
-### 工作流 C — 测试与发布
+### 工作流 C — 测试与发布 🚧 §13 测试基础设施完成
 
-未开始。
+收尾日期：2026-05-31（部分）。
+
+**已落地（§13 不变量单测基础设施）**：
+
+`cargo test --lib` 共 68 测试通过（开工前 33：`hotkey` 12 + `onboarding` 6 + `export_bindings` 15；本工作流新增 35）。10/12 §13 不变量由单测覆盖；4（剪贴板互斥）和 9（窗口互斥）性质所致不适合纯 Rust 单测（前者前端 UI 行为，后者 Tauri runtime 依赖），留集成测试与 smoke test 覆盖。详细覆盖映射见 HANDOFF.md "§13 核心不变量清单"。
+
+按文件新增：
+
+| 文件 | 新增测试 | 覆盖不变量 |
+|---|---|---|
+| `render.rs` test mod | 6 | 1, 2 |
+| `color.rs` test mod | 7 | 5, 6, 10, 11 |
+| `search.rs` test mod（rank 部分） | 7 | 7, 8 |
+| `search.rs` test mod（pinyin 部分） | 5 | 12 |
+| `fill.rs` 新模块（src + test） | 10 | 3 |
+
+**实施期间重构 / bug 修复**：
+
+1. **新建 `src-tauri/src/fill.rs` 模块**：从 `commands.rs` 抽出 `compute_initial_value` + `is_valid_for_variable`，让 SPEC §4.5 优先级层叠逻辑独立单测。`prepare_fill_dialog` IPC 改调 `fill::compute_initial_value`，行为零变化
+2. **拆 `search::rank` 纯函数**：`search()` 仍接 `&AppState`，内部调 `rank(templates: &[Template], query)` 纯函数。SPEC §7 加权 / 排序 / pinned-first 行为可不依赖 Tauri runtime 单测。`Vec<Template>` 取所有权改 `Vec<&Template>` 借用，避免 clone（轻微性能改进副产品）
+3. **加 `state::AppState::for_test()` helper**：`#[cfg(test)]` 限定，用 `tempfile::tempdir()` 作 data_folder 构造空 state，让 `color::reconcile_colors` 等依赖 state 的逻辑可单测
+4. **修 `color::random_oklch` round-trip 精度 bug**（F1 决议）：原阈值 `>= 4.5` 在生成器内部满足，但 `format!("{l:.3} {c:.3} {h:.1}")` 截断后 re-parse 出来的 contrast 可能掉到 4.499（如 `oklch(0.583 0.121 327.2)` 实测），违反 SPEC §13 不变量 10 的实际渲染语义（用户实际看到的是 stored 形式）。改为 `>= CONTRAST_TARGET (4.5) + CONTRAST_GUARD (0.05)`，1000-sample sweep 稳过
+
+**剩余工作流 C 项目**（未开始）：
+
+- 关键 IPC 命令族集成测试（`save_template` round-trip / `apply_template` outcome / `prepare_fill_dialog` 全 case）
+- Windows `.msi` 打包（含 `tauri.conf.json` bundle identifier 从占位 `app.snippet` 换为真实反向域名）
+- 代码签名 v1 跳过（unsigned `.msi`，SmartScreen 会有首次启动警告但功能完整）
+- 手动 smoke test：完整安装 → onboarding → 使用流程 → 设置变更 → 卸载 → 重装（数据保留）
 
 ---
 
@@ -714,3 +742,4 @@
 - **C 系列**（必填+剪贴板空死锁 / watcher+颜色页并发 / autoPaste 失败检测 / migration 失败 / 剪贴板读失败回退）：边做边补。
 - **D 系列**（"对话框" 措辞、§13 不变量 7 测试稳定性、ARCHITECTURE §6 GC 周期归类）：未处理。
 - **E1**（2026-05-30，Slice 7a 开工时）：原 Slice 7 拆为 7a / 7b / 7c —— 7a Onboarding + dataFolderPath、7b 完整设置页 hotkey + autoPaste 整合、7c 主题切换 + 全组件 dark 适配。原因：原切片范围过大（~2 天），单切完成前无法分段 demo / 回滚；blast radius 集中在三块独立基础设施，拆开后每块可独立 tag、独立验收。Onboarding 引入两阶段启动（Phase A bootstrap → Phase B AppState lazy manage）作为整个 7 系列的结构前置，落地在 lib.rs。TASKS.md 拆分写入推迟到 7c 完成后一次性更新（避免文档/代码不同步窗口）。
+- **F1**（2026-05-31，工作流 C §13 单测开工时）：`color::random_oklch` 阈值从 `>= 4.5` 改为 `>= 4.55`（`CONTRAST_TARGET + CONTRAST_GUARD`）。原因：生成器内部满足 4.5 不等于 stored 字符串形式 round-trip 后仍满足 — `{l:.3}` 截断丢精度，re-parse 可能掉到 4.499，违反 SPEC §13 不变量 10 的实际渲染语义。`invariant_10_random_oklch_meets_contrast_against_white` 测试以 1000 次 sweep + parse 校验 stored 形式 ≥ 4.5，工作流 C 测试编写过程中先以一个真实 case 暴露此 bug 后修复。SPEC §6.2 / §13 不变量 10 措辞未变（仍 ≥ 4.5:1），属实现强化而非 spec 偏移。

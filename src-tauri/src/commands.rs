@@ -3,6 +3,7 @@
 
 use crate::auto_paste;
 use crate::color;
+use crate::fill;
 use crate::hotkey;
 use crate::onboarding;
 use crate::palette;
@@ -10,7 +11,7 @@ use crate::paths;
 use crate::render;
 use crate::schema::{
     Bootstrap, DataFolderStatus, Settings, StartupWarning, TagColorMap, Template, Variable,
-    VariableColorMap, VariableType, CURRENT_SCHEMA_VERSION,
+    VariableColorMap, CURRENT_SCHEMA_VERSION,
 };
 use crate::search;
 use crate::state::AppState;
@@ -300,7 +301,7 @@ pub fn prepare_fill_dialog(
 
     let mut initial_values: HashMap<Uuid, String> = HashMap::new();
     for var in &ordered_variables {
-        let v = compute_initial_value(var, clipboard_text.as_deref(), &last_used_map);
+        let v = fill::compute_initial_value(var, clipboard_text.as_deref(), &last_used_map);
         initial_values.insert(var.guid, v);
     }
 
@@ -309,44 +310,6 @@ pub fn prepare_fill_dialog(
         initial_values,
         ordered_variables,
     })
-}
-
-fn compute_initial_value(
-    var: &Variable,
-    clipboard: Option<&str>,
-    last_used_map: &HashMap<String, String>,
-) -> String {
-    if var.fill_from_clipboard {
-        if let Some(text) = clipboard {
-            if !text.is_empty() && is_valid_for_variable(var, text) {
-                return text.to_string();
-            }
-        }
-    }
-    if var.remember_last_used {
-        let key = var.display_name.to_lowercase();
-        if let Some(stored) = last_used_map.get(&key) {
-            if !stored.is_empty() && is_valid_for_variable(var, stored) {
-                return stored.clone();
-            }
-        }
-    }
-    if let Some(d) = &var.static_default {
-        if is_valid_for_variable(var, d) {
-            return d.clone();
-        }
-    }
-    String::new()
-}
-
-fn is_valid_for_variable(var: &Variable, value: &str) -> bool {
-    match var.variable_type {
-        VariableType::Text => true,
-        VariableType::Enum => var
-            .options
-            .as_ref()
-            .map_or(false, |opts| opts.iter().any(|o| o == value)),
-    }
 }
 
 #[tauri::command]

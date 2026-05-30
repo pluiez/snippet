@@ -71,4 +71,22 @@ impl AppState {
     pub fn settings_path(&self) -> PathBuf {
         self.data_folder.join("settings.json")
     }
+
+    /// Construct an empty AppState rooted at `data_folder` for unit tests.
+    /// All maps start empty and settings/last-used/colors are `Default`. Use
+    /// with `tempfile::tempdir()` so reconcile/storage writes land in a
+    /// scratch directory.
+    #[cfg(test)]
+    pub fn for_test(data_folder: PathBuf) -> Self {
+        Self {
+            data_folder,
+            templates: Mutex::new(HashMap::new()),
+            last_used: Mutex::new(LastUsed::default()),
+            variable_colors: Mutex::new(VariableColorMap::default()),
+            tag_colors: Mutex::new(TagColorMap::default()),
+            settings: Mutex::new(Settings::default()),
+            cached_hwnd: AtomicIsize::new(0),
+            startup_warnings: Mutex::new(Vec::new()),
+        }
+    }
 }

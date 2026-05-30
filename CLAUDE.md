@@ -4,9 +4,9 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Repository status
 
-**Phase 2 complete through Slice 7 (all sub-slices 7a/7b/7c). Phase 3 工作流 A (animations) and 工作流 B (error handling) complete.** Working app: scaffold + data layer + main-window CRUD + palette + variable fill + edit mode + colors + clipboard output with Windows autoPaste + first-launch onboarding + complete settings page (hotkey live re-register, autoPaste, dataFolderPath) + theme switching (light/dark/system with full component dark adaptation) + animations & transitions + error handling (toast variants, dirty detection, startup warnings, empty states, onboarding validation). See `PROGRESS.md` for per-slice notes.
+**Phase 2 complete through Slice 7 (all sub-slices 7a/7b/7c). Phase 3 工作流 A (animations) and 工作流 B (error handling) complete. Phase 3 工作流 C §13 invariant unit-test infrastructure complete (10/12 covered; invariants 4 and 9 deferred to integration / smoke tests by nature).** Working app: scaffold + data layer + main-window CRUD + palette + variable fill + edit mode + colors + clipboard output with Windows autoPaste + first-launch onboarding + complete settings page (hotkey live re-register, autoPaste, dataFolderPath) + theme switching (light/dark/system with full component dark adaptation) + animations & transitions + error handling (toast variants, dirty detection, startup warnings, empty states, onboarding validation). `cargo test --lib` = 68 passing. See `PROGRESS.md` for per-slice notes.
 
-**Next: Phase 3 工作流 C — 测试与发布** (per `TASKS.md`). Includes: SPEC §13 invariant unit tests, IPC integration tests, pinyin/fuzzy regression tests, Windows packaging (.msi), code signing, smoke test.
+**Next: Phase 3 工作流 C remaining items** — IPC command-family integration tests, Windows `.msi` packaging (incl. swapping `app.snippet` for a real reverse-domain identifier), manual smoke test (install → onboarding → use → settings → uninstall → reinstall). Code signing skipped for v1 (unsigned `.msi`, SmartScreen first-launch warning OK).
 
 ## Picking up where the last session left off
 
