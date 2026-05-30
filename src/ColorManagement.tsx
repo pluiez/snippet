@@ -115,7 +115,11 @@ export function ColorManagement({ onClose }: Props) {
 
         <div className="rounded border border-zinc-200 bg-white dark:border-zinc-700 dark:bg-zinc-800">
           {Object.keys(current).length === 0 ? (
-            <div className="p-6 text-center text-sm text-zinc-400 dark:text-zinc-500">（空）</div>
+            <div className="rounded border border-dashed border-zinc-300 p-6 text-center text-sm text-zinc-500 dark:border-zinc-600 dark:text-zinc-400">
+              {tab === "vars"
+                ? "还没有变量颜色记录。创建模板并添加变量后，颜色会自动生成。"
+                : "还没有标签颜色记录。给模板添加标签后，颜色会自动生成。"}
+            </div>
           ) : (
             <div className="divide-y divide-zinc-100 dark:divide-zinc-700">
               {Object.entries(current)

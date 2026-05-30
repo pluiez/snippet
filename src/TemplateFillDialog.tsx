@@ -1,5 +1,5 @@
 import { useMemo, useState } from "react";
-import { Copy, Unlock, X } from "lucide-react";
+import { AlertTriangle, Copy, Unlock, X } from "lucide-react";
 import type { FillDialogState } from "./lib/bindings/FillDialogState";
 import type { Variable } from "./lib/bindings/Variable";
 import { render } from "./lib/render";
@@ -22,6 +22,7 @@ export function TemplateFillDialog({
     state.initialValues
   );
   const [submitting, setSubmitting] = useState(false);
+  const [submitError, setSubmitError] = useState<string | null>(null);
 
   const allRequiredFilled = useMemo(
     () =>
@@ -40,10 +41,12 @@ export function TemplateFillDialog({
   const handleSubmit = async () => {
     if (!canSubmit) return;
     setSubmitting(true);
+    setSubmitError(null);
     try {
       await onApply(values);
     } catch (e) {
       console.error("apply failed", e);
+      setSubmitError(String(e));
       setSubmitting(false);
     }
   };
@@ -137,6 +140,13 @@ export function TemplateFillDialog({
               </pre>
             </div>
           </div>
+
+          {submitError && (
+            <div className="mt-4 flex items-start gap-2 rounded border border-red-200 bg-red-50 px-3 py-2 text-xs text-red-700 dark:border-red-800 dark:bg-red-950/40 dark:text-red-300">
+              <AlertTriangle size={14} className="mt-0.5 shrink-0" />
+              <span className="break-all">操作失败：{submitError}</span>
+            </div>
+          )}
 
           <div className="mt-4 text-xs text-zinc-500 dark:text-zinc-400">
             Cmd/Ctrl+Enter 复制 · Esc 取消

@@ -23,13 +23,14 @@ use ts_rs::TS;
 use crate::commands::{
     apply_template, complete_onboarding_custom_new, complete_onboarding_default,
     complete_onboarding_import, current_data_folder, default_data_folder, delete_template,
-    duplicate_template, exit_app, get_settings, get_tag_colors, get_template, get_variable_colors,
-    hide_palette, list_templates, prepare_fill_dialog, random_color, save_settings,
-    save_tag_colors, save_template, save_variable_colors, search_templates, set_data_folder_path,
-    pause_hotkey, resume_hotkey, set_pinned, show_main_window, show_palette, validate_hotkey,
-    validate_path_for_import, validate_path_for_new,
+    duplicate_template, exit_app, get_settings, get_startup_warnings, get_tag_colors,
+    get_template, get_variable_colors, hide_palette, list_templates, prepare_fill_dialog,
+    random_color, save_settings, save_tag_colors, save_template, save_variable_colors,
+    search_templates, set_data_folder_path, pause_hotkey, resume_hotkey, set_pinned,
+    show_main_window, show_palette, validate_hotkey, validate_path_for_import,
+    validate_path_for_new,
 };
-use crate::schema::{Bootstrap, LastUsed, Settings, TagColorMap, VariableColorMap};
+use crate::schema::{Bootstrap, LastUsed, Settings, StartupWarning, TagColorMap, VariableColorMap};
 use crate::state::AppState;
 
 #[derive(Serialize, Deserialize, TS)]
@@ -110,6 +111,7 @@ pub fn run() {
             complete_onboarding_custom_new,
             complete_onboarding_import,
             set_data_folder_path,
+            get_startup_warnings,
             exit_app,
         ])
         .on_window_event(|window, event| {
@@ -186,7 +188,13 @@ pub fn run() {
                 let state = init_full_state(app.handle(), &bootstrap)
                     .expect("failed to initialize app state");
                 app.manage(state);
-                register_hotkey_from_settings(app.handle());
+                if let Some(w) = register_hotkey_from_settings(app.handle()) {
+                    if let Some(s) = app.try_state::<AppState>() {
+                        if let Ok(mut warnings) = s.startup_warnings.lock() {
+                            warnings.push(w);
+                        }
+                    }
+                }
             }
 
             Ok(())
@@ -212,7 +220,7 @@ pub fn run() {
 /// Phase A: read or default-init `bootstrap.json`. Always runs at startup.
 fn init_bootstrap(app: &AppHandle) -> anyhow::Result<Bootstrap> {
     let boot_path = paths::bootstrap_path(app)?;
-    let bootstrap: Bootstrap =
+    let (bootstrap, _recovered) =
         storage::load_or_init(&boot_path, Bootstrap::default, |b| b.schema_version)?;
     info!(path = ?boot_path, ?bootstrap, "bootstrap loaded");
     Ok(bootstrap)
@@ -231,30 +239,89 @@ fn init_full_state(app: &AppHandle, bootstrap: &Bootstrap) -> anyhow::Result<App
     storage::ensure_data_folder_structure(&data_folder)?;
     info!(path = ?data_folder, "dataFolder ready");
 
-    let settings: Settings = storage::load_or_init(
+    // Write-permission probe: try write + delete a sentinel file.
+    let probe_path = data_folder.join(".snippet-write-test");
+    match std::fs::write(&probe_path, b"probe") {
+        Ok(()) => {
+            let _ = std::fs::remove_file(&probe_path);
+        }
+        Err(e) => {
+            warn!(error = ?e, path = ?data_folder, "data folder is not writable");
+            use tauri_plugin_dialog::DialogExt;
+            app.dialog()
+                .message(format!(
+                    "数据文件夹无写权限：\n{}\n\n请检查文件夹权限或在设置中更改路径。\n\n错误详情：{}",
+                    data_folder.display(),
+                    e
+                ))
+                .title("Snippet 启动错误")
+                .blocking_show();
+            std::process::exit(1);
+        }
+    }
+
+    let mut warnings: Vec<StartupWarning> = Vec::new();
+
+    let (settings, settings_recovered) = storage::load_or_init(
         &data_folder.join("settings.json"),
         Settings::default,
         |s| s.schema_version,
     )?;
-    let variable_colors: VariableColorMap = storage::load_or_init(
+    if settings_recovered {
+        warnings.push(StartupWarning {
+            kind: "corrupt_config".to_string(),
+            message: "settings.json 已损坏或版本不匹配，已重置为默认设置。".to_string(),
+        });
+    }
+
+    let (variable_colors, vc_recovered) = storage::load_or_init(
         &data_folder.join("variable-colors.json"),
         VariableColorMap::default,
         |c| c.schema_version,
     )?;
-    let tag_colors: TagColorMap = storage::load_or_init(
+    if vc_recovered {
+        warnings.push(StartupWarning {
+            kind: "corrupt_config".to_string(),
+            message: "variable-colors.json 已损坏，变量颜色已重置。".to_string(),
+        });
+    }
+
+    let (tag_colors, tc_recovered) = storage::load_or_init(
         &data_folder.join("tag-colors.json"),
         TagColorMap::default,
         |c| c.schema_version,
     )?;
-    let last_used: LastUsed = storage::load_or_init(
+    if tc_recovered {
+        warnings.push(StartupWarning {
+            kind: "corrupt_config".to_string(),
+            message: "tag-colors.json 已损坏，标签颜色已重置。".to_string(),
+        });
+    }
+
+    let (last_used, lu_recovered) = storage::load_or_init(
         &data_folder.join("last-used.json"),
         LastUsed::default,
         |l| l.schema_version,
     )?;
+    if lu_recovered {
+        warnings.push(StartupWarning {
+            kind: "corrupt_config".to_string(),
+            message: "last-used.json 已损坏，上次使用记录已重置。".to_string(),
+        });
+    }
 
     let templates_dir = data_folder.join("templates");
-    let templates = storage::load_templates(&templates_dir)?;
-    info!(count = templates.len(), "templates loaded");
+    let (templates, invalid_count) = storage::load_templates(&templates_dir)?;
+    info!(count = templates.len(), invalid_count, "templates loaded");
+    if invalid_count > 0 {
+        warnings.push(StartupWarning {
+            kind: "invalid_templates".to_string(),
+            message: format!(
+                "发现 {} 个损坏的模板文件，已移至 templates/.invalid/ 目录。",
+                invalid_count
+            ),
+        });
+    }
 
     let state = AppState::new(
         data_folder,
@@ -263,6 +330,7 @@ fn init_full_state(app: &AppHandle, bootstrap: &Bootstrap) -> anyhow::Result<App
         variable_colors,
         tag_colors,
         settings,
+        warnings,
     );
 
     if let Err(e) = color::reconcile_colors(&state) {
@@ -278,30 +346,51 @@ fn init_full_state(app: &AppHandle, bootstrap: &Bootstrap) -> anyhow::Result<App
 /// fix the keybinding from the Settings page.
 ///
 /// Caller must `app.manage(state)` BEFORE calling this — we read the hotkey
-/// string out of `AppState.settings`. Returns silently if state isn't
-/// managed yet (defensive; should never happen in practice).
-fn register_hotkey_from_settings(app: &AppHandle) {
+/// string out of `AppState.settings`. Returns `None` on success, or a
+/// `StartupWarning` if registration failed.
+fn register_hotkey_from_settings(app: &AppHandle) -> Option<StartupWarning> {
     let Some(state) = app.try_state::<AppState>() else {
         warn!("register_hotkey_from_settings called before AppState was managed");
-        return;
+        return None;
     };
     let hotkey_str = match state.settings.lock() {
         Ok(s) => s.hotkey.clone(),
         Err(e) => {
             warn!(error = ?e, "settings lock poisoned; skipping hotkey register");
-            return;
+            return None;
         }
     };
     match hotkey::parse_hotkey(&hotkey_str) {
         Ok(shortcut) => match app.global_shortcut().register(shortcut) {
-            Ok(()) => info!(hotkey = %hotkey_str, "global hotkey registered"),
-            Err(e) => warn!(error = ?e, hotkey = %hotkey_str, "failed to register global hotkey"),
+            Ok(()) => {
+                info!(hotkey = %hotkey_str, "global hotkey registered");
+                None
+            }
+            Err(e) => {
+                warn!(error = ?e, hotkey = %hotkey_str, "failed to register global hotkey");
+                Some(StartupWarning {
+                    kind: "hotkey_failed".to_string(),
+                    message: format!(
+                        "全局热键 '{}' 注册失败，可能被其它程序占用。请在设置中更改。",
+                        hotkey_str
+                    ),
+                })
+            }
         },
-        Err(e) => warn!(
-            error = %e,
-            hotkey = %hotkey_str,
-            "settings.hotkey unparseable; no hotkey active"
-        ),
+        Err(e) => {
+            warn!(
+                error = %e,
+                hotkey = %hotkey_str,
+                "settings.hotkey unparseable; no hotkey active"
+            );
+            Some(StartupWarning {
+                kind: "hotkey_failed".to_string(),
+                message: format!(
+                    "热键 '{}' 格式无效，无法注册。请在设置中更改。",
+                    hotkey_str
+                ),
+            })
+        }
     }
 }
 
@@ -333,7 +422,13 @@ pub fn complete_onboarding(
 
     let state = init_full_state(app, &bootstrap)?;
     app.manage(state);
-    register_hotkey_from_settings(app);
+    if let Some(w) = register_hotkey_from_settings(app) {
+        if let Some(s) = app.try_state::<AppState>() {
+            if let Ok(mut warnings) = s.startup_warnings.lock() {
+                warnings.push(w);
+            }
+        }
+    }
 
     if let Some(w) = app.get_webview_window("onboarding") {
         let _ = w.hide();

@@ -178,3 +178,16 @@ impl Default for LastUsed {
         }
     }
 }
+
+/// A warning collected during app startup (corrupt config recovered, hotkey
+/// registration failed, etc.) that should be shown to the user via toast.
+#[derive(Clone, Debug, Serialize, Deserialize, TS)]
+#[ts(export, export_to = "../src/lib/bindings/")]
+#[serde(rename_all = "camelCase")]
+pub struct StartupWarning {
+    /// Machine-readable category: "corrupt_config", "invalid_templates",
+    /// "hotkey_failed", "write_permission".
+    pub kind: String,
+    /// Human-readable message (Chinese) shown to the user.
+    pub message: String,
+}

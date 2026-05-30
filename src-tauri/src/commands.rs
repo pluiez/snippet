@@ -9,8 +9,8 @@ use crate::palette;
 use crate::paths;
 use crate::render;
 use crate::schema::{
-    Bootstrap, DataFolderStatus, Settings, TagColorMap, Template, Variable, VariableColorMap,
-    VariableType, CURRENT_SCHEMA_VERSION,
+    Bootstrap, DataFolderStatus, Settings, StartupWarning, TagColorMap, Template, Variable,
+    VariableColorMap, VariableType, CURRENT_SCHEMA_VERSION,
 };
 use crate::search;
 use crate::state::AppState;
@@ -826,4 +826,17 @@ fn ensure_colors_for_template(
             .map_err(|e| format!("emit failed: {e}"))?;
     }
     Ok(())
+}
+
+/// Return any warnings collected during startup and clear them (one-shot).
+/// Pull model is more reliable than events — events emitted during `setup`
+/// can race the frontend mount.
+#[tauri::command]
+pub fn get_startup_warnings(state: State<'_, AppState>) -> Result<Vec<StartupWarning>, String> {
+    let mut warnings = state
+        .startup_warnings
+        .lock()
+        .map_err(|e| format!("startup_warnings lock poisoned: {e}"))?;
+    let out = warnings.drain(..).collect();
+    Ok(out)
 }

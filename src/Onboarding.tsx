@@ -6,6 +6,30 @@ import type { DataFolderStatus } from "./lib/bindings/DataFolderStatus";
 
 type Choice = "default" | "customNew" | "import";
 
+function hintForCustomNew(status: DataFolderStatus): string {
+  switch (status) {
+    case "validSnippet":
+      return "目标路径已是 Snippet 数据文件夹。如需使用现有数据，请改用「从已有路径导入」。";
+    case "occupiedByOther":
+      return "目标路径已有内容。如果是已有 Snippet 数据，请改用「从已有路径导入」。";
+    default:
+      return "该路径不可用。";
+  }
+}
+
+function hintForImport(status: DataFolderStatus): string {
+  switch (status) {
+    case "doesNotExist":
+      return "路径不存在。请选择一个已有的 Snippet 数据文件夹。";
+    case "empty":
+      return "目录为空，没有可导入的数据。如果要新建，请选择「指定路径新建」。";
+    case "occupiedByOther":
+      return "该路径不是 Snippet 数据文件夹（缺少 templates/ 或配置文件）。";
+    default:
+      return "该路径不可用。";
+  }
+}
+
 export function Onboarding() {
   const [choice, setChoice] = useState<Choice>("default");
   const [defaultPath, setDefaultPath] = useState<string>("");
@@ -118,7 +142,7 @@ export function Onboarding() {
               status={customStatus}
               onPick={pickCustom}
               eligibleStatuses={["doesNotExist", "empty"]}
-              hintIneligible="目标路径已有内容。如果是已有 Snippet 数据，请改用「从已有路径导入」。"
+              hintForStatus={hintForCustomNew}
             />
           </OptionCard>
 
@@ -134,7 +158,7 @@ export function Onboarding() {
               status={importStatus}
               onPick={pickImport}
               eligibleStatuses={["validSnippet"]}
-              hintIneligible="该路径不是 Snippet 数据文件夹（缺少 templates/ 或配置文件）。"
+              hintForStatus={hintForImport}
             />
           </OptionCard>
         </div>
@@ -221,7 +245,7 @@ interface PathPickerProps {
   status: DataFolderStatus | null;
   onPick: () => void;
   eligibleStatuses: DataFolderStatus[];
-  hintIneligible: string;
+  hintForStatus: (status: DataFolderStatus) => string;
 }
 
 function PathPicker({
@@ -229,7 +253,7 @@ function PathPicker({
   status,
   onPick,
   eligibleStatuses,
-  hintIneligible,
+  hintForStatus,
 }: PathPickerProps) {
   const eligible = status != null && eligibleStatuses.includes(status);
   return (
@@ -253,7 +277,7 @@ function PathPicker({
       </div>
       {path && status && !eligible && (
         <div className="rounded bg-red-50 px-2 py-1.5 text-xs text-red-700 dark:bg-red-950/40 dark:text-red-300">
-          {hintIneligible}
+          {hintForStatus(status)}
         </div>
       )}
       {path && status && eligible && (

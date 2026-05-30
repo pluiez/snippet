@@ -5,13 +5,14 @@ import { AnimatePresence, motion } from "framer-motion";
 import { Palette as PaletteIcon, Settings as SettingsIcon, X } from "lucide-react";
 import type { AppInfo } from "./lib/bindings/AppInfo";
 import type { ApplyOutcome } from "./lib/bindings/ApplyOutcome";
+import type { StartupWarning } from "./lib/bindings/StartupWarning";
 import type { FillDialogState } from "./lib/bindings/FillDialogState";
 import type { Template } from "./lib/bindings/Template";
 import type { TemplateSummary } from "./lib/bindings/TemplateSummary";
 import { TemplateList } from "./TemplateList";
 import { TemplateEditor } from "./TemplateEditor";
 import { TemplateFillDialog } from "./TemplateFillDialog";
-import { Toast } from "./Toast";
+import { Toast, type ToastVariant } from "./Toast";
 import { ColorManagement } from "./ColorManagement";
 import { Settings } from "./Settings";
 import { mergeFillValues } from "./lib/fill";
@@ -38,7 +39,7 @@ export default function App() {
   const [templates, setTemplates] = useState<TemplateSummary[]>([]);
   const [loaded, setLoaded] = useState(false);
   const [view, setView] = useState<View>({ type: "list" });
-  const [toast, setToast] = useState<{ msg: string; key: number } | null>(null);
+  const [toast, setToast] = useState<{ msg: string; key: number; variant?: ToastVariant } | null>(null);
   const [glowing, setGlowing] = useState(false);
   const [tagFilter, setTagFilter] = useState<string | null>(null);
 
@@ -54,6 +55,19 @@ export default function App() {
   useEffect(() => {
     invoke<AppInfo>("app_info").then(setInfo).catch(console.error);
     refresh().finally(() => setLoaded(true));
+
+    // Show startup warnings as toasts (corrupt config, hotkey failure, etc.).
+    // Uses setToast directly (stable setter) instead of showToast (unstable ref).
+    invoke<StartupWarning[]>("get_startup_warnings")
+      .then((warnings) => {
+        warnings.forEach((w, i) => {
+          setTimeout(() => {
+            setToast({ msg: w.message, key: Date.now(), variant: "warning" });
+          }, 500 + i * 4500); // stagger: first at 500ms, then spaced by toast duration
+        });
+      })
+      .catch(console.error);
+
     const changed = listen("templates-changed", () => {
       refresh();
     });
@@ -66,7 +80,8 @@ export default function App() {
     };
   }, [refresh]);
 
-  const showToast = (msg: string) => setToast({ msg, key: Date.now() });
+  const showToast = (msg: string, variant?: ToastVariant) =>
+    setToast({ msg, key: Date.now(), variant });
 
   const toastForOutcome = (outcome: ApplyOutcome, name: string) => {
     if (outcome.pasted) {
@@ -74,7 +89,7 @@ export default function App() {
       return;
     }
     if (outcome.reason === "failed") {
-      showToast(`已复制：${name}，请手动粘贴`);
+      showToast(`已复制：${name}，请手动粘贴`, "warning");
     } else {
       showToast(`已复制：${name}`);
     }
@@ -316,6 +331,7 @@ export default function App() {
         <Toast
           key={toast.key}
           message={toast.msg}
+          variant={toast.variant}
           onDismiss={() => setToast(null)}
         />
       )}

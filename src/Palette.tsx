@@ -2,7 +2,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { invoke } from "@tauri-apps/api/core";
 import { listen } from "@tauri-apps/api/event";
 import { AnimatePresence, motion } from "framer-motion";
-import { Pin, Search } from "lucide-react";
+import { Eye, FileText, Pin, Search, SearchX } from "lucide-react";
 import type { ApplyOutcome } from "./lib/bindings/ApplyOutcome";
 import type { FillDialogState } from "./lib/bindings/FillDialogState";
 import type { Template } from "./lib/bindings/Template";
@@ -10,7 +10,7 @@ import type { TemplateSummary } from "./lib/bindings/TemplateSummary";
 import { TemplateFillDialog } from "./TemplateFillDialog";
 import { TemplateEditor } from "./TemplateEditor";
 import { TagPill } from "./TagPill";
-import { Toast } from "./Toast";
+import { Toast, type ToastVariant } from "./Toast";
 import { BodyWithVariableChips } from "./BodyWithVariableChips";
 import { mergeFillValues } from "./lib/fill";
 import { DURATION, EASE } from "./lib/motion";
@@ -36,7 +36,7 @@ export function Palette() {
   const [results, setResults] = useState<TemplateSummary[]>([]);
   const [selectedIdx, setSelectedIdx] = useState(0);
   const [previewTemplate, setPreviewTemplate] = useState<Template | null>(null);
-  const [toast, setToast] = useState<{ msg: string; key: number } | null>(null);
+  const [toast, setToast] = useState<{ msg: string; key: number; variant?: ToastVariant } | null>(null);
   const [visible, setVisible] = useState(false);
   const previewRef = useRef<HTMLDivElement | null>(null);
   const inputRef = useRef<HTMLInputElement | null>(null);
@@ -104,8 +104,9 @@ export function Palette() {
     }
   }, [selected]);
 
-  // Handle the outcome of an apply IPC. If autoPaste was attempted but failed,
-  // show a toast for ~1.5s before hiding the palette. Otherwise hide immediately.
+  // Handle the outcome of an apply IPC. Palette closes immediately on
+  // success (paste or copy-only). Only when autoPaste was attempted but
+  // failed do we show a warning toast briefly before hiding.
   const finalizeApply = async (outcome: ApplyOutcome, name: string) => {
     if (outcome.pasted) {
       requestHide();
@@ -115,12 +116,13 @@ export function Palette() {
       setToast({
         msg: `已复制：${name}，请手动粘贴`,
         key: Date.now(),
+        variant: "warning",
       });
       setTimeout(() => {
         requestHide();
       }, TOAST_BEFORE_HIDE_MS);
     } else {
-      // autoPaste disabled — just hide; user will switch app and paste manually.
+      // autoPaste disabled — clipboard write succeeded, hide immediately.
       requestHide();
     }
   };
@@ -287,6 +289,7 @@ export function Palette() {
         <Toast
           key={toast.key}
           message={toast.msg}
+          variant={toast.variant}
           onDismiss={() => setToast(null)}
         />
       )}
@@ -332,8 +335,20 @@ function SearchView({
         </div>
         <div className="flex-1 overflow-y-auto">
           {results.length === 0 ? (
-            <div className="p-4 text-center text-sm text-zinc-400 dark:text-zinc-500">
-              {query ? "无匹配" : "无模板"}
+            <div className="flex flex-col items-center justify-center gap-2 p-6 text-center">
+              {query ? (
+                <>
+                  <SearchX size={24} className="text-zinc-300 dark:text-zinc-600" />
+                  <div className="text-sm text-zinc-400 dark:text-zinc-500">没有匹配的模板</div>
+                  <div className="text-xs text-zinc-300 dark:text-zinc-600">试试其它关键词</div>
+                </>
+              ) : (
+                <>
+                  <FileText size={24} className="text-zinc-300 dark:text-zinc-600" />
+                  <div className="text-sm text-zinc-400 dark:text-zinc-500">还没有模板</div>
+                  <div className="text-xs text-zinc-300 dark:text-zinc-600">从主窗口新建你的第一个模板</div>
+                </>
+              )}
             </div>
           ) : (
             <ul>
@@ -377,7 +392,10 @@ function SearchView({
         {previewTemplate ? (
           <Preview template={previewTemplate} />
         ) : (
-          <div className="p-6 text-sm text-zinc-400 dark:text-zinc-500">（无选中）</div>
+          <div className="flex flex-col items-center justify-center gap-2 p-6 text-center">
+            <Eye size={20} className="text-zinc-300 dark:text-zinc-600" />
+            <div className="text-sm text-zinc-400 dark:text-zinc-500">选中模板以预览</div>
+          </div>
         )}
       </div>
     </div>

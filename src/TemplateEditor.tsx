@@ -1,10 +1,12 @@
-import { useMemo, useState } from "react";
-import { Save, X } from "lucide-react";
+import { useEffect, useMemo, useRef, useState } from "react";
+import { AnimatePresence } from "framer-motion";
+import { AlertTriangle, Save, X } from "lucide-react";
 import type { Template } from "./lib/bindings/Template";
 import type { Variable } from "./lib/bindings/Variable";
 import { bodyToDisplay, bodyToStorage } from "./lib/body";
 import { VariableList } from "./VariableList";
 import { TagInput } from "./TagInput";
+import { ConfirmDialog } from "./ConfirmDialog";
 
 interface Props {
   template: Template;
@@ -42,6 +44,25 @@ export function TemplateEditor({
   const [lastEditedGuid, setLastEditedGuid] = useState<string | null>(null);
 
   const [saving, setSaving] = useState(false);
+  const [saveError, setSaveError] = useState<string | null>(null);
+  const [showDiscardConfirm, setShowDiscardConfirm] = useState(false);
+
+  // Snapshot at mount for dirty detection (same pattern as Settings.tsx).
+  const initialSnapshot = useRef(
+    JSON.stringify({
+      displayName: template.displayName,
+      bodyStorage: template.body,
+      variables: template.variables,
+      tags: template.tags,
+    })
+  );
+
+  const dirty = useMemo(
+    () =>
+      JSON.stringify({ displayName, bodyStorage, variables, tags }) !==
+      initialSnapshot.current,
+    [displayName, bodyStorage, variables, tags]
+  );
 
   const handleBodyChange = (e: React.ChangeEvent<HTMLTextAreaElement>) => {
     setBodyStorage(bodyToStorage(e.target.value, variables));
@@ -132,6 +153,7 @@ export function TemplateEditor({
   const handleSave = async () => {
     if (!canSave) return;
     setSaving(true);
+    setSaveError(null);
     try {
       await onSave({
         ...template,
@@ -145,23 +167,46 @@ export function TemplateEditor({
       });
     } catch (e) {
       console.error("save failed", e);
+      setSaveError(String(e));
       setSaving(false);
     }
   };
 
-  const handleKeyDown = (e: React.KeyboardEvent) => {
-    if (e.nativeEvent.isComposing) return;
+  const handleCancel = () => {
+    if (dirty) {
+      setShowDiscardConfirm(true);
+    } else {
+      onCancel();
+    }
+  };
+
+  // Global keydown listener so Escape/Ctrl+Enter work regardless of focus.
+  // Uses window-level listener (same approach as ConfirmDialog) to avoid
+  // relying on event bubbling from a non-focusable container div.
+  // A ref holds the latest handler to avoid stale-closure issues without
+  // needing to list every piece of transitive state in the deps array.
+  const keyHandlerRef = useRef((_e: KeyboardEvent) => {});
+  keyHandlerRef.current = (e: KeyboardEvent) => {
+    if (e.isComposing) return;
+    // When the discard-confirm dialog is open, let its own Escape handler
+    // manage dismissal — don't re-trigger handleCancel from here.
+    if (showDiscardConfirm) return;
     if ((e.metaKey || e.ctrlKey) && e.key === "Enter") {
       e.preventDefault();
       handleSave();
     } else if (e.key === "Escape") {
       e.preventDefault();
-      onCancel();
+      handleCancel();
     }
   };
+  useEffect(() => {
+    const handler = (e: KeyboardEvent) => keyHandlerRef.current(e);
+    window.addEventListener("keydown", handler);
+    return () => window.removeEventListener("keydown", handler);
+  }, []);
 
   return (
-    <div onKeyDown={handleKeyDown}>
+    <div>
       <div className="flex items-center justify-between border-b border-amber-200 bg-amber-50 px-6 py-1.5 text-xs uppercase tracking-wide text-amber-800 dark:border-amber-700 dark:bg-amber-950/40 dark:text-amber-200">
         <span>编辑模式</span>
       </div>
@@ -175,7 +220,7 @@ export function TemplateEditor({
             <div className="flex items-center gap-2">
               <button
                 type="button"
-                onClick={onCancel}
+                onClick={handleCancel}
                 disabled={saving}
                 className="inline-flex items-center gap-1.5 rounded border border-zinc-300 bg-white px-3 py-1.5 text-sm font-medium text-zinc-700 hover:bg-zinc-50 disabled:opacity-50 dark:border-zinc-600 dark:bg-zinc-800 dark:text-zinc-300 dark:hover:bg-zinc-700"
               >
@@ -230,12 +275,38 @@ export function TemplateEditor({
               />
             </Section>
 
+            {saveError && (
+              <div className="flex items-start gap-2 rounded border border-red-200 bg-red-50 px-3 py-2 text-xs text-red-700 dark:border-red-800 dark:bg-red-950/40 dark:text-red-300">
+                <AlertTriangle size={14} className="mt-0.5 shrink-0" />
+                <div>
+                  <div className="font-medium">保存失败</div>
+                  <div className="mt-0.5 break-all">{saveError}</div>
+                  <div className="mt-1 text-red-500 dark:text-red-400">
+                    改动未持久化，请修改后重试。
+                  </div>
+                </div>
+              </div>
+            )}
+
             <div className="text-xs text-zinc-500 dark:text-zinc-400">
               Cmd/Ctrl+Enter 保存 · Esc 取消
             </div>
           </div>
         </div>
       </div>
+
+      <AnimatePresence>
+        {showDiscardConfirm && (
+          <ConfirmDialog
+            title="放弃修改"
+            message="当前有未保存的修改，确定要放弃吗？"
+            confirmText="放弃"
+            destructive
+            onConfirm={() => onCancel()}
+            onCancel={() => setShowDiscardConfirm(false)}
+          />
+        )}
+      </AnimatePresence>
     </div>
   );
 }

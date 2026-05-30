@@ -1,6 +1,6 @@
 //! Application runtime state shared across IPC commands.
 
-use crate::schema::{LastUsed, Settings, TagColorMap, Template, VariableColorMap};
+use crate::schema::{LastUsed, Settings, StartupWarning, TagColorMap, Template, VariableColorMap};
 use std::collections::HashMap;
 use std::path::PathBuf;
 use std::sync::atomic::AtomicIsize;
@@ -25,6 +25,9 @@ pub struct AppState {
     /// the first synchronous step in the hotkey callback. Slice 6 (autoPaste)
     /// reads it to send Ctrl+V back to the previous app.
     pub cached_hwnd: AtomicIsize,
+    /// Warnings collected during startup (corrupt configs, hotkey failures, etc.).
+    /// Consumed once by the frontend via `get_startup_warnings` and then cleared.
+    pub startup_warnings: Mutex<Vec<StartupWarning>>,
 }
 
 impl AppState {
@@ -35,6 +38,7 @@ impl AppState {
         variable_colors: VariableColorMap,
         tag_colors: TagColorMap,
         settings: Settings,
+        startup_warnings: Vec<StartupWarning>,
     ) -> Self {
         Self {
             data_folder,
@@ -44,6 +48,7 @@ impl AppState {
             tag_colors: Mutex::new(tag_colors),
             settings: Mutex::new(settings),
             cached_hwnd: AtomicIsize::new(0),
+            startup_warnings: Mutex::new(startup_warnings),
         }
     }
 

@@ -32,17 +32,21 @@ pub fn read_json<T: DeserializeOwned>(path: &Path) -> Result<T> {
 /// Load a typed config file; if missing, version-mismatched, or corrupt,
 /// write a default and return that. Used for bootstrap / settings / color
 /// maps / last-used (i.e. single-doc files, not template files).
+///
+/// Returns `(value, recovered)` where `recovered` is true if the file was
+/// missing, corrupt, or had a mismatched schema version (i.e. the default
+/// was written). Callers can use this to surface startup warnings.
 pub fn load_or_init<T>(
     path: &Path,
     default: impl FnOnce() -> T,
     schema_version: impl Fn(&T) -> u32,
-) -> Result<T>
+) -> Result<(T, bool)>
 where
     T: Serialize + DeserializeOwned,
 {
     if path.exists() {
         match read_json::<T>(path) {
-            Ok(v) if schema_version(&v) == CURRENT_SCHEMA_VERSION => Ok(v),
+            Ok(v) if schema_version(&v) == CURRENT_SCHEMA_VERSION => Ok((v, false)),
             Ok(v) => {
                 warn!(
                     path = ?path,
@@ -52,20 +56,20 @@ where
                 );
                 let d = default();
                 atomic_write(path, &d)?;
-                Ok(d)
+                Ok((d, true))
             }
             Err(e) => {
                 warn!(path = ?path, error = ?e, "corrupt JSON; replacing with default");
                 let d = default();
                 atomic_write(path, &d)?;
-                Ok(d)
+                Ok((d, true))
             }
         }
     } else {
         let d = default();
         atomic_write(path, &d)?;
         info!(path = ?path, "created default file");
-        Ok(d)
+        Ok((d, false))
     }
 }
 
@@ -82,10 +86,15 @@ pub fn ensure_data_folder_structure(root: &Path) -> Result<()> {
 
 /// Scan dataFolder/templates/*.json and load all valid templates.
 /// Corrupt or version-mismatched files are moved to .invalid/.
-pub fn load_templates(templates_dir: &Path) -> Result<HashMap<Uuid, Template>> {
+///
+/// Returns `(templates, invalid_count)` where `invalid_count` is the number
+/// of files that were moved to `.invalid/`. Callers can use this to surface
+/// startup warnings.
+pub fn load_templates(templates_dir: &Path) -> Result<(HashMap<Uuid, Template>, usize)> {
     let mut out = HashMap::new();
+    let mut invalid_count: usize = 0;
     if !templates_dir.exists() {
-        return Ok(out);
+        return Ok((out, 0));
     }
     for entry in std::fs::read_dir(templates_dir)
         .with_context(|| format!("reading {}", templates_dir.display()))?
@@ -112,16 +121,18 @@ pub fn load_templates(templates_dir: &Path) -> Result<HashMap<Uuid, Template>> {
                 if let Err(e) = move_to_invalid(&path) {
                     warn!(path = ?path, error = ?e, "failed to move to .invalid/");
                 }
+                invalid_count += 1;
             }
             Err(e) => {
                 warn!(path = ?path, error = ?e, "template parse failed; moving to .invalid/");
                 if let Err(e2) = move_to_invalid(&path) {
                     warn!(path = ?path, error = ?e2, "failed to move to .invalid/");
                 }
+                invalid_count += 1;
             }
         }
     }
-    Ok(out)
+    Ok((out, invalid_count))
 }
 
 fn move_to_invalid(path: &Path) -> Result<()> {
