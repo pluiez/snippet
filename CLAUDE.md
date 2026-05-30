@@ -4,7 +4,15 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Repository status
 
-**Slice 0 scaffold in place.** Tauri v2 + React 19 + TS + Tailwind v4 + ts-rs are wired. `pnpm install && pnpm tauri dev` boots the app on Windows. Spec docs sit alongside the source and remain the product source of truth. Next: Slice 0.5 (data layer skeleton).
+**Phase 2 complete through Slice 6.** Working app: scaffold + data layer + main-window CRUD + palette + variable fill + edit mode + colors + clipboard output with Windows autoPaste. See `PROGRESS.md` for per-slice notes (what landed, what was verified, known limitations, and spec decisions written back into SPEC/ARCHITECTURE).
+
+**Next: Slice 7 — Onboarding + 完整设置页** (per `TASKS.md` §Phase 2). Current Settings page is a minimal stub with only autoPaste; Slice 7 adds hotkey (with conflict check + live re-register), theme (light/dark/system), dataFolderPath, plus the onboarding window for first-launch path selection.
+
+## Picking up where the last session left off
+
+1. Read `PROGRESS.md` first — it has the complete status of each slice including known limitations and unresolved punch-list items.
+2. Project memory and global memory load automatically. Notable entries: project lives at `C:\dev\snippet` (Windows-native, not WSL), data folder convention uses `Snippet` subdir (not bundle identifier), repo language is Chinese.
+3. Dev workflow is Windows-native — user runs `pnpm tauri dev` from PowerShell at `C:\dev\snippet`. Linux WSL is for editing only (this Claude session accesses via `/mnt/c/dev/snippet/`).
 
 ## The four documents and how to use them
 
