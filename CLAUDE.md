@@ -4,9 +4,9 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Repository status
 
-**Phase 2 complete through Slice 7 (all sub-slices 7a/7b/7c). Phase 3 工作流 A (animations) complete.** Working app: scaffold + data layer + main-window CRUD + palette + variable fill + edit mode + colors + clipboard output with Windows autoPaste + first-launch onboarding + complete settings page (hotkey live re-register, autoPaste, dataFolderPath) + theme switching (light/dark/system with full component dark adaptation) + animations & transitions (palette fade, view transitions, toast fade, glow pulse, color transitions). See `PROGRESS.md` for per-slice notes.
+**Phase 2 complete through Slice 7 (all sub-slices 7a/7b/7c). Phase 3 工作流 A (animations) and 工作流 B (error handling) complete.** Working app: scaffold + data layer + main-window CRUD + palette + variable fill + edit mode + colors + clipboard output with Windows autoPaste + first-launch onboarding + complete settings page (hotkey live re-register, autoPaste, dataFolderPath) + theme switching (light/dark/system with full component dark adaptation) + animations & transitions + error handling (toast variants, dirty detection, startup warnings, empty states, onboarding validation). See `PROGRESS.md` for per-slice notes.
 
-**Next: Phase 3 工作流 B — 错误处理与边界态** (per `TASKS.md`). Includes: error handling polish, dirty-state guards, empty states, then 工作流 C (tests & packaging).
+**Next: Phase 3 工作流 C — 测试与发布** (per `TASKS.md`). Includes: SPEC §13 invariant unit tests, IPC integration tests, pinyin/fuzzy regression tests, Windows packaging (.msi), code signing, smoke test.
 
 ## Picking up where the last session left off
 

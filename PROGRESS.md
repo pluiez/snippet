@@ -637,9 +637,66 @@
 - 视图过渡用 directional cross-fade 而非 `layoutId` morph：SearchView 和 TemplateFillDialog DOM 结构完全不同，没有共享元素可 morph
 - `requestHide()` 延迟 = `DURATION.normal * 1000` (200ms)，期间连续按热键由 `hideTimeoutRef` 去重
 
-### 工作流 B — 错误处理与边界态
+### 工作流 B — 错误处理与边界态 ✅
 
-未开始。
+收尾日期：2026-05-31。
+
+**已落地（后端）**：
+
+- `schema.rs` 新增 `StartupWarning { kind: String, message: String }` struct (`#[derive(TS)]`)
+- `state.rs`：`AppState` 新增 `startup_warnings: Mutex<Vec<StartupWarning>>`；`AppState::new()` 接受 `warnings` 参数
+- `storage.rs`：`load_or_init` 返回 `Result<(T, bool)>` (bool=recovered)；`load_templates` 返回 `Result<(HashMap, usize)>` (usize=invalid count)
+- `lib.rs`：
+  - `init_full_state` 新增写权限探测（`.snippet-write-test` sentinel），失败时弹阻塞对话框 + `exit(1)`
+  - 逐文件收集 recovered 状态，为每个损坏配置文件生成 `StartupWarning`
+  - `register_hotkey_from_settings` 改为返回 `Option<StartupWarning>`（失败时返回警告而非静默）
+  - setup 和 complete_onboarding 都将热键警告追加到 state
+- `commands.rs` 新增 `get_startup_warnings` IPC：读取并清空 `state.startup_warnings`
+
+**已落地（前端）**：
+
+- **Toast 多样式**（`src/Toast.tsx`）：新增 `variant` prop (`success` | `error` | `warning`)；不同图标（Check vs AlertTriangle）、不同颜色、不同默认时长（success 2.5s, error/warning 4s）
+- **编辑器 dirty 检测 + 二次确认**（`src/TemplateEditor.tsx`）：
+  - `useRef` initialSnapshot + `useMemo` dirty 比较（JSON.stringify，与 Settings.tsx 相同模式）
+  - Cancel 按钮 + Escape 键：dirty 时弹 ConfirmDialog "放弃修改"
+  - **全局 keydown listener**（`window.addEventListener`）：通过 ref 持有最新 handler，避免 stale closure；`showDiscardConfirm` 时 early return 防止 Escape 冲突
+  - Save 失败：inline 红色错误条（AlertTriangle + 错误详情）
+- **填充对话框 submit 错误**（`src/TemplateFillDialog.tsx`）：catch → inline 红色提示
+- **启动警告**（`src/App.tsx`）：mount 时调用 `get_startup_warnings` IPC，逐条以 warning toast 展示（staggered 500ms + i*4500ms）
+- **Palette toast 行为**（`src/Palette.tsx`）：
+  - paste 成功 → 立即隐藏（无 toast，焦点已移走）
+  - autoPaste 关闭 → 立即隐藏（无 toast，palette 关闭即是确认）
+  - paste 失败 → warning toast "已复制：xxx，请手动粘贴" + 1.5s 后隐藏
+- **空状态**（`src/Palette.tsx` + `src/ColorManagement.tsx`）：
+  - Palette：搜索无匹配 → SearchX + 引导文案；无模板 → FileText + 引导；预览区无选中 → Eye + 提示
+  - 颜色管理：空 tab → dashed-border 引导卡片
+- **Onboarding 路径校验**（`src/Onboarding.tsx`）：`hintForStatus` 函数化，per-status 中文提示（区分 validSnippet/occupiedByOther/doesNotExist/empty）
+
+**已验证**（用户手动测试 on Windows `pnpm tauri dev`）：
+
+- ✅ 启动警告 toast（损坏 config 恢复、热键注册失败）
+- ✅ 空状态 UI（Palette 搜索无匹配、无模板；颜色管理空 tab）
+- ✅ Onboarding 路径校验友好提示
+- ✅ 编辑器 dirty 检测：修改后点取消按钮 → 弹确认框 ✅
+- ✅ 编辑器 dirty 检测：修改后按 Escape → 弹确认框 ✅（第二版修复：window-level keydown listener）
+- ✅ 编辑器无修改 → 取消/Escape 直接退出，无确认框
+- ✅ Palette 操作后行为：autoPaste 关闭→立即关闭；paste 失败→短暂 toast 再关闭
+
+**Bug 修复历史**：
+
+1. **Escape 不触发 dirty 确认**（初版）：`<div onKeyDown>` 无 tabIndex，事件冒泡不可靠。修为 `useEffect` + `window.addEventListener("keydown", ...)` + ref pattern
+2. **Palette toast 阻塞关闭**（初版）：autoPaste 关闭时也显示 toast + 延迟 1.5s 才关 palette。用户反馈"不要干等"。修为仅 paste-failed 路径显示 toast，正常路径立即关闭
+
+**生成的 bindings**：
+
+- `src/lib/bindings/StartupWarning.ts`
+- `src-tauri/src/lib/bindings/StartupWarning.ts`
+
+**不做 / 推迟到工作流 C 的项**：
+
+- WebView2 缺失引导安装（属打包阶段）
+- 设置页"指定空路径新建"（需大量改动，优先级低）
+- 已知 OS 保留热键列表提示（优先级低）
 
 ### 工作流 C — 测试与发布
 
