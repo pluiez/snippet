@@ -59,7 +59,7 @@ All commands from repo root.
 
 ### Dev platform
 
-Target is Windows (WebView2). Convention: develop and run on Windows native. WSL is fine for editing but Linux dev would need `webkit2gtk-4.1` + `librsvg2` apt packages, and Windows-specific behavior (hotkey, paste, clipboard) won't fully match.
+Target runtime is Windows native (WebView2). Convention: develop and run on Windows native. The editing Claude session runs from **Ubuntu on WSL 2** and reaches the repo at `/mnt/c/dev/snippet/`; the user runs `pnpm tauri dev` / `pnpm tauri build` from PowerShell at `C:\dev\snippet`. WSL is fine for editing and `cargo test --lib` (when crates.io reachable), but Linux dev would need `webkit2gtk-4.1` + `librsvg2` apt packages, and Windows-specific behavior (hotkey, paste, clipboard) won't fully match — so the workflow keeps Windows in the loop. WSL 1 is not supported (9p / `/mnt/c` integration assumptions).
 
 ### After editing Rust types
 
