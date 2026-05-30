@@ -29,7 +29,7 @@ export function BodyWithVariableChips({ body, variables, className }: Props) {
   if (parts.length === 0) {
     return (
       <pre className={className}>
-        <span className="italic text-zinc-400">（空）</span>
+        <span className="italic text-zinc-400 dark:text-zinc-500">（空）</span>
       </pre>
     );
   }
@@ -37,7 +37,7 @@ export function BodyWithVariableChips({ body, variables, className }: Props) {
   return (
     <pre
       className={
-        "whitespace-pre-wrap break-words font-mono text-sm text-zinc-900 " +
+        "whitespace-pre-wrap break-words font-mono text-sm text-zinc-900 dark:text-zinc-100 " +
         (className ?? "")
       }
     >

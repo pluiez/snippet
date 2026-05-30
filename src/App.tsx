@@ -120,13 +120,13 @@ export default function App() {
   return (
     <main
       className={
-        "min-h-screen bg-zinc-50 font-sans transition-shadow duration-300 " +
+        "min-h-screen bg-zinc-50 font-sans transition-shadow duration-300 dark:bg-zinc-900 " +
         (glowing ? "shadow-[inset_0_0_0_4px_rgb(251_191_36)]" : "")
       }
     >
-      <header className="flex items-baseline gap-3 border-b border-zinc-200 bg-white px-6 py-3">
-        <h1 className="text-base font-semibold tracking-tight">Snippet</h1>
-        <span className="text-xs text-zinc-500">
+      <header className="flex items-baseline gap-3 border-b border-zinc-200 bg-white px-6 py-3 dark:border-zinc-700 dark:bg-zinc-900">
+        <h1 className="text-base font-semibold tracking-tight dark:text-zinc-100">Snippet</h1>
+        <span className="text-xs text-zinc-500 dark:text-zinc-400">
           {info ? `v${info.version}` : ""}
         </span>
       </header>
@@ -283,24 +283,24 @@ function MainNav({
   onClearTag: () => void;
 }) {
   return (
-    <nav className="w-44 shrink-0 border-r border-zinc-200 bg-white p-3">
+    <nav className="w-44 shrink-0 border-r border-zinc-200 bg-white p-3 dark:border-zinc-700 dark:bg-zinc-900">
       <NavItem active={active === "list" && !tagFilter} onClick={onSelectAll}>
         全部模板
       </NavItem>
       {tagFilter && (
-        <div className="mt-1 flex items-center gap-1.5 rounded border border-amber-200 bg-amber-50 px-3 py-1.5 text-xs text-amber-800">
+        <div className="mt-1 flex items-center gap-1.5 rounded border border-amber-200 bg-amber-50 px-3 py-1.5 text-xs text-amber-800 dark:border-amber-700 dark:bg-amber-950/40 dark:text-amber-200">
           <span className="truncate">tag: {tagFilter}</span>
           <button
             type="button"
             onClick={onClearTag}
-            className="ml-auto shrink-0 rounded p-0.5 hover:bg-amber-100"
+            className="ml-auto shrink-0 rounded p-0.5 hover:bg-amber-100 dark:hover:bg-amber-900/50"
             title="清除筛选"
           >
             <X size={12} />
           </button>
         </div>
       )}
-      <div className="my-2 border-t border-zinc-200" />
+      <div className="my-2 border-t border-zinc-200 dark:border-zinc-700" />
       <NavItem active={active === "colors"} onClick={onSelectColors}>
         <PaletteIcon size={14} className="shrink-0" />
         颜色管理
@@ -329,8 +329,8 @@ function NavItem({
       className={
         "flex w-full items-center gap-2 rounded px-3 py-1.5 text-left text-sm font-medium transition-colors " +
         (active
-          ? "bg-zinc-100 text-zinc-900"
-          : "text-zinc-600 hover:bg-zinc-50")
+          ? "bg-zinc-100 text-zinc-900 dark:bg-zinc-700 dark:text-zinc-100"
+          : "text-zinc-600 hover:bg-zinc-50 dark:text-zinc-400 dark:hover:bg-zinc-800")
       }
     >
       {children}

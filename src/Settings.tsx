@@ -6,6 +6,7 @@ import { useSettings } from "./lib/settings";
 import { ConfirmDialog } from "./ConfirmDialog";
 import { HotkeyInput } from "./HotkeyInput";
 import type { Settings as SettingsType } from "./lib/bindings/Settings";
+import type { ThemePreference } from "./lib/bindings/ThemePreference";
 import type { DataFolderStatus } from "./lib/bindings/DataFolderStatus";
 
 interface Props {
@@ -41,7 +42,7 @@ export function Settings({ onClose }: Props) {
   if (!staged || !settings) {
     return (
       <section className="flex-1 p-6">
-        <div className="text-sm text-zinc-500">loading…</div>
+        <div className="text-sm text-zinc-500 dark:text-zinc-400">loading…</div>
       </section>
     );
   }
@@ -110,18 +111,18 @@ export function Settings({ onClose }: Props) {
     <section className="flex-1 overflow-y-auto p-6">
       <div className="mx-auto max-w-2xl">
         <div className="mb-4 flex items-center justify-between">
-          <h2 className="text-base font-semibold tracking-tight">设置</h2>
+          <h2 className="text-base font-semibold tracking-tight dark:text-zinc-100">设置</h2>
           <button
             type="button"
             onClick={onClose}
-            className="rounded p-1.5 text-zinc-500 hover:bg-zinc-100 hover:text-zinc-900"
+            className="rounded p-1.5 text-zinc-500 hover:bg-zinc-100 hover:text-zinc-900 dark:text-zinc-400 dark:hover:bg-zinc-700 dark:hover:text-zinc-200"
             title="关闭"
           >
             <X size={14} />
           </button>
         </div>
 
-        <div className="space-y-4 rounded border border-zinc-200 bg-white p-5">
+        <div className="space-y-4 rounded border border-zinc-200 bg-white p-5 dark:border-zinc-700 dark:bg-zinc-800">
           <SettingsRow
             title="全局热键"
             description={
@@ -141,7 +142,7 @@ export function Settings({ onClose }: Props) {
             />
           </SettingsRow>
 
-          <hr className="border-zinc-100" />
+          <hr className="border-zinc-100 dark:border-zinc-700" />
 
           <SettingsRow
             title="自动粘贴"
@@ -154,22 +155,22 @@ export function Settings({ onClose }: Props) {
                 onChange={(e) =>
                   setStaged({ ...staged, autoPaste: e.target.checked })
                 }
-                className="h-4 w-4 rounded border-zinc-300 text-zinc-900 focus:ring-zinc-500"
+                className="h-4 w-4 rounded border-zinc-300 text-zinc-900 focus:ring-zinc-500 dark:border-zinc-600"
               />
-              <span className="text-sm">启用</span>
+              <span className="text-sm dark:text-zinc-300">启用</span>
             </label>
           </SettingsRow>
 
-          <hr className="border-zinc-100" />
+          <hr className="border-zinc-100 dark:border-zinc-700" />
 
           <SettingsRow
             title="数据文件夹"
             description={
               <>
-                <div className="mt-0.5 break-all font-mono text-xs text-zinc-700">
+                <div className="mt-0.5 break-all font-mono text-xs text-zinc-700 dark:text-zinc-300">
                   {dataFolder || "（加载中…）"}
                 </div>
-                <div className="mt-1 text-xs text-zinc-500">
+                <div className="mt-1 text-xs text-zinc-500 dark:text-zinc-400">
                   改路径后需要重启应用。仅支持指向已存在的 Snippet
                   数据文件夹（新建空库请走 onboarding 流程）。
                 </div>
@@ -179,7 +180,7 @@ export function Settings({ onClose }: Props) {
             <button
               type="button"
               onClick={onPickNewDataFolder}
-              className="inline-flex items-center gap-1.5 rounded border border-zinc-300 bg-white px-2.5 py-1 text-xs font-medium text-zinc-700 hover:bg-zinc-50"
+              className="inline-flex items-center gap-1.5 rounded border border-zinc-300 bg-white px-2.5 py-1 text-xs font-medium text-zinc-700 hover:bg-zinc-50 dark:border-zinc-600 dark:bg-zinc-800 dark:text-zinc-300 dark:hover:bg-zinc-700"
             >
               <FolderOpen size={12} />
               更改…
@@ -187,17 +188,25 @@ export function Settings({ onClose }: Props) {
           </SettingsRow>
         </div>
 
-        <div className="mt-3 rounded border border-zinc-200 bg-zinc-50 p-3 text-xs leading-relaxed text-zinc-500">
-          其它设置（主题）将在 Slice 7c 中加入。
+        <div className="mt-4 space-y-4 rounded border border-zinc-200 bg-white p-5 dark:border-zinc-700 dark:bg-zinc-800">
+          <SettingsRow
+            title="主题"
+            description="切换浅色 / 深色外观，或跟随系统设置。"
+          >
+            <ThemeRadio
+              value={staged.theme}
+              onChange={(theme) => setStaged({ ...staged, theme })}
+            />
+          </SettingsRow>
         </div>
 
         {saveError && (
-          <div className="mt-3 flex items-start gap-2 rounded border border-red-200 bg-red-50 px-3 py-2 text-xs text-red-700">
+          <div className="mt-3 flex items-start gap-2 rounded border border-red-200 bg-red-50 px-3 py-2 text-xs text-red-700 dark:border-red-800 dark:bg-red-950/40 dark:text-red-300">
             <AlertTriangle size={14} className="mt-0.5 shrink-0" />
             <div className="leading-relaxed">
               <div className="font-medium">保存失败</div>
               <div className="mt-0.5 break-all">{saveError}</div>
-              <div className="mt-1 text-red-600/80">
+              <div className="mt-1 text-red-600/80 dark:text-red-400/80">
                 设置未持久化；旧值仍生效。请修改后重试。
               </div>
             </div>
@@ -209,7 +218,7 @@ export function Settings({ onClose }: Props) {
             type="button"
             onClick={onCancel}
             disabled={!dirty || saving}
-            className="inline-flex items-center gap-1.5 rounded border border-zinc-300 bg-white px-3 py-1.5 text-sm font-medium text-zinc-700 hover:bg-zinc-50 disabled:opacity-50"
+            className="inline-flex items-center gap-1.5 rounded border border-zinc-300 bg-white px-3 py-1.5 text-sm font-medium text-zinc-700 hover:bg-zinc-50 disabled:opacity-50 dark:border-zinc-600 dark:bg-zinc-800 dark:text-zinc-300 dark:hover:bg-zinc-700"
           >
             <X size={14} />
             取消
@@ -218,7 +227,7 @@ export function Settings({ onClose }: Props) {
             type="button"
             onClick={onSave}
             disabled={!dirty || saving}
-            className="inline-flex items-center gap-1.5 rounded bg-zinc-900 px-3 py-1.5 text-sm font-medium text-white hover:bg-zinc-800 disabled:opacity-50"
+            className="inline-flex items-center gap-1.5 rounded bg-zinc-900 px-3 py-1.5 text-sm font-medium text-white hover:bg-zinc-800 disabled:opacity-50 dark:bg-zinc-100 dark:text-zinc-900 dark:hover:bg-zinc-200"
           >
             <Save size={14} />
             {saving ? "保存中…" : "保存"}
@@ -251,12 +260,49 @@ function SettingsRow({
   return (
     <div className="flex items-start justify-between gap-4">
       <div className="min-w-0 flex-1">
-        <div className="text-sm font-medium text-zinc-900">{title}</div>
-        <div className="mt-0.5 text-xs leading-relaxed text-zinc-500">
+        <div className="text-sm font-medium text-zinc-900 dark:text-zinc-100">
+          {title}
+        </div>
+        <div className="mt-0.5 text-xs leading-relaxed text-zinc-500 dark:text-zinc-400">
           {description}
         </div>
       </div>
       <div className="shrink-0">{children}</div>
+    </div>
+  );
+}
+
+const THEME_OPTIONS: { value: ThemePreference; label: string }[] = [
+  { value: "light", label: "浅色" },
+  { value: "dark", label: "深色" },
+  { value: "system", label: "跟随系统" },
+];
+
+function ThemeRadio({
+  value,
+  onChange,
+}: {
+  value: ThemePreference;
+  onChange: (v: ThemePreference) => void;
+}) {
+  return (
+    <div className="flex items-center gap-3">
+      {THEME_OPTIONS.map((opt) => (
+        <label
+          key={opt.value}
+          className="inline-flex cursor-pointer items-center gap-1.5 text-sm"
+        >
+          <input
+            type="radio"
+            name="theme"
+            value={opt.value}
+            checked={value === opt.value}
+            onChange={() => onChange(opt.value)}
+            className="text-zinc-900 focus:ring-zinc-500 dark:text-zinc-100"
+          />
+          <span className="text-zinc-700 dark:text-zinc-300">{opt.label}</span>
+        </label>
+      ))}
     </div>
   );
 }

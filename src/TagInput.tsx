@@ -38,7 +38,7 @@ export function TagInput({ tags, onChange }: Props) {
   };
 
   return (
-    <div className="flex flex-wrap items-center gap-1.5 rounded border border-zinc-300 bg-white px-2 py-1.5">
+    <div className="flex flex-wrap items-center gap-1.5 rounded border border-zinc-300 bg-white px-2 py-1.5 dark:border-zinc-600 dark:bg-zinc-900">
       {tags.map((tag, idx) => (
         <span
           key={`${tag}-${idx}`}
@@ -62,7 +62,7 @@ export function TagInput({ tags, onChange }: Props) {
         onKeyDown={handleKeyDown}
         onBlur={handleAdd}
         placeholder={tags.length === 0 ? "输入标签后按 Enter" : ""}
-        className="min-w-[100px] flex-1 bg-transparent text-sm outline-none"
+        className="min-w-[100px] flex-1 bg-transparent text-sm outline-none dark:text-zinc-100 dark:placeholder:text-zinc-500"
       />
     </div>
   );

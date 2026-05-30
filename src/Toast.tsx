@@ -15,8 +15,8 @@ export function Toast({ message, onDismiss, durationMs = 2500 }: Props) {
 
   return (
     <div className="pointer-events-none fixed bottom-6 left-1/2 -translate-x-1/2">
-      <div className="pointer-events-auto inline-flex items-center gap-2 rounded-lg bg-zinc-900 px-4 py-2 text-sm text-white shadow-lg">
-        <Check size={14} className="text-green-400" />
+      <div className="pointer-events-auto inline-flex items-center gap-2 rounded-lg bg-zinc-900 px-4 py-2 text-sm text-white shadow-lg dark:bg-zinc-100 dark:text-zinc-900">
+        <Check size={14} className="text-green-400 dark:text-green-600" />
         {message}
       </div>
     </div>

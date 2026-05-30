@@ -35,10 +35,10 @@ export function VariableEditor({ variable, error, onChange, onDelete }: Props) {
   };
 
   return (
-    <div className="rounded border border-zinc-200 bg-white p-3">
+    <div className="rounded border border-zinc-200 bg-white p-3 dark:border-zinc-700 dark:bg-zinc-800">
       <div className="mb-2 flex items-start gap-2">
         <div className="flex-1">
-          <label className="mb-1 block text-[10px] font-medium uppercase tracking-wide text-zinc-500">
+          <label className="mb-1 block text-[10px] font-medium uppercase tracking-wide text-zinc-500 dark:text-zinc-400">
             显示名
           </label>
           <input
@@ -47,21 +47,21 @@ export function VariableEditor({ variable, error, onChange, onDelete }: Props) {
             onChange={(e) => setField("displayName", e.target.value)}
             placeholder="例如：Language"
             className={
-              "w-full rounded border px-2 py-1 text-sm focus:outline-none " +
+              "w-full rounded border px-2 py-1 text-sm focus:outline-none dark:bg-zinc-900 dark:text-zinc-100 " +
               (error
-                ? "border-red-400 focus:border-red-500"
-                : "border-zinc-300 focus:border-zinc-500")
+                ? "border-red-400 focus:border-red-500 dark:border-red-500"
+                : "border-zinc-300 focus:border-zinc-500 dark:border-zinc-600 dark:focus:border-zinc-400")
             }
           />
         </div>
         <div className="w-24">
-          <label className="mb-1 block text-[10px] font-medium uppercase tracking-wide text-zinc-500">
+          <label className="mb-1 block text-[10px] font-medium uppercase tracking-wide text-zinc-500 dark:text-zinc-400">
             类型
           </label>
           <select
             value={variable.type}
             onChange={(e) => handleTypeChange(e.target.value as VariableType)}
-            className="w-full rounded border border-zinc-300 px-2 py-1 text-sm focus:border-zinc-500 focus:outline-none"
+            className="w-full rounded border border-zinc-300 px-2 py-1 text-sm focus:border-zinc-500 focus:outline-none dark:border-zinc-600 dark:bg-zinc-900 dark:text-zinc-100 dark:focus:border-zinc-400"
           >
             <option value="text">text</option>
             <option value="enum">enum</option>
@@ -71,21 +71,21 @@ export function VariableEditor({ variable, error, onChange, onDelete }: Props) {
           type="button"
           title="删除变量"
           onClick={onDelete}
-          className="mt-5 rounded p-1 text-zinc-500 hover:bg-red-50 hover:text-red-600"
+          className="mt-5 rounded p-1 text-zinc-500 hover:bg-red-50 hover:text-red-600 dark:text-zinc-400 dark:hover:bg-red-950/40 dark:hover:text-red-400"
         >
           <Trash2 size={14} />
         </button>
       </div>
 
       {error && (
-        <div className="mb-2 rounded bg-red-50 px-2 py-1 text-xs text-red-600">
+        <div className="mb-2 rounded bg-red-50 px-2 py-1 text-xs text-red-600 dark:bg-red-950/40 dark:text-red-300">
           {error}
         </div>
       )}
 
       {variable.type === "enum" && (
         <div className="mb-2">
-          <label className="mb-1 block text-[10px] font-medium uppercase tracking-wide text-zinc-500">
+          <label className="mb-1 block text-[10px] font-medium uppercase tracking-wide text-zinc-500 dark:text-zinc-400">
             选项
           </label>
           <OptionsInput
@@ -95,7 +95,7 @@ export function VariableEditor({ variable, error, onChange, onDelete }: Props) {
         </div>
       )}
 
-      <div className="mb-2 flex flex-wrap items-center gap-x-3 gap-y-1 text-sm text-zinc-700">
+      <div className="mb-2 flex flex-wrap items-center gap-x-3 gap-y-1 text-sm text-zinc-700 dark:text-zinc-300">
         <Checkbox
           checked={variable.required}
           onChange={(v) => setField("required", v)}
@@ -114,7 +114,7 @@ export function VariableEditor({ variable, error, onChange, onDelete }: Props) {
       </div>
 
       <div>
-        <label className="mb-1 block text-[10px] font-medium uppercase tracking-wide text-zinc-500">
+        <label className="mb-1 block text-[10px] font-medium uppercase tracking-wide text-zinc-500 dark:text-zinc-400">
           静态默认值
         </label>
         {variable.type === "enum" ? (
@@ -126,7 +126,7 @@ export function VariableEditor({ variable, error, onChange, onDelete }: Props) {
                 e.target.value === "" ? null : e.target.value
               )
             }
-            className="w-full rounded border border-zinc-300 px-2 py-1 text-sm focus:border-zinc-500 focus:outline-none"
+            className="w-full rounded border border-zinc-300 px-2 py-1 text-sm focus:border-zinc-500 focus:outline-none dark:border-zinc-600 dark:bg-zinc-900 dark:text-zinc-100 dark:focus:border-zinc-400"
           >
             <option value="">（无）</option>
             {(variable.options ?? []).map((opt) => (
@@ -146,7 +146,7 @@ export function VariableEditor({ variable, error, onChange, onDelete }: Props) {
               )
             }
             placeholder="（无）"
-            className="w-full rounded border border-zinc-300 px-2 py-1 text-sm focus:border-zinc-500 focus:outline-none"
+            className="w-full rounded border border-zinc-300 px-2 py-1 text-sm focus:border-zinc-500 focus:outline-none dark:border-zinc-600 dark:bg-zinc-900 dark:text-zinc-100 dark:focus:border-zinc-400"
           />
         )}
       </div>
@@ -169,7 +169,7 @@ function Checkbox({
         type="checkbox"
         checked={checked}
         onChange={(e) => onChange(e.target.checked)}
-        className="rounded border-zinc-300 text-zinc-900 focus:ring-zinc-500"
+        className="rounded border-zinc-300 text-zinc-900 focus:ring-zinc-500 dark:border-zinc-600"
       />
       <span>{label}</span>
     </label>

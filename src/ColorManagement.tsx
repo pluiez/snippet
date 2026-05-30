@@ -93,18 +93,18 @@ export function ColorManagement({ onClose }: Props) {
     <section className="flex-1 p-6">
       <div className="mx-auto max-w-3xl">
         <div className="mb-4 flex items-center justify-between">
-          <h2 className="text-base font-semibold tracking-tight">颜色管理</h2>
+          <h2 className="text-base font-semibold tracking-tight dark:text-zinc-100">颜色管理</h2>
           <button
             type="button"
             onClick={onClose}
-            className="rounded p-1.5 text-zinc-500 hover:bg-zinc-100 hover:text-zinc-900"
+            className="rounded p-1.5 text-zinc-500 hover:bg-zinc-100 hover:text-zinc-900 dark:text-zinc-400 dark:hover:bg-zinc-700 dark:hover:text-zinc-200"
             title="关闭"
           >
             <X size={14} />
           </button>
         </div>
 
-        <div className="mb-3 inline-flex rounded border border-zinc-200 bg-white p-0.5 text-sm">
+        <div className="mb-3 inline-flex rounded border border-zinc-200 bg-white p-0.5 text-sm dark:border-zinc-700 dark:bg-zinc-800">
           <TabButton active={tab === "vars"} onClick={() => setTab("vars")}>
             变量颜色（{Object.keys(stagedVars).length}）
           </TabButton>
@@ -113,11 +113,11 @@ export function ColorManagement({ onClose }: Props) {
           </TabButton>
         </div>
 
-        <div className="rounded border border-zinc-200 bg-white">
+        <div className="rounded border border-zinc-200 bg-white dark:border-zinc-700 dark:bg-zinc-800">
           {Object.keys(current).length === 0 ? (
-            <div className="p-6 text-center text-sm text-zinc-400">（空）</div>
+            <div className="p-6 text-center text-sm text-zinc-400 dark:text-zinc-500">（空）</div>
           ) : (
-            <div className="divide-y divide-zinc-100">
+            <div className="divide-y divide-zinc-100 dark:divide-zinc-700">
               {Object.entries(current)
                 .sort(([a], [b]) => a.localeCompare(b))
                 .map(([key, color]) => (
@@ -138,7 +138,7 @@ export function ColorManagement({ onClose }: Props) {
             type="button"
             onClick={resetAll}
             disabled={Object.keys(current).length === 0 || saving}
-            className="inline-flex items-center gap-1.5 rounded border border-zinc-300 bg-white px-3 py-1.5 text-sm font-medium text-zinc-700 hover:bg-zinc-50 disabled:opacity-50"
+            className="inline-flex items-center gap-1.5 rounded border border-zinc-300 bg-white px-3 py-1.5 text-sm font-medium text-zinc-700 hover:bg-zinc-50 disabled:opacity-50 dark:border-zinc-600 dark:bg-zinc-800 dark:text-zinc-300 dark:hover:bg-zinc-700"
           >
             <RotateCw size={14} />
             重置全部
@@ -148,7 +148,7 @@ export function ColorManagement({ onClose }: Props) {
               type="button"
               onClick={onCancel}
               disabled={!dirty || saving}
-              className="inline-flex items-center gap-1.5 rounded border border-zinc-300 bg-white px-3 py-1.5 text-sm font-medium text-zinc-700 hover:bg-zinc-50 disabled:opacity-50"
+              className="inline-flex items-center gap-1.5 rounded border border-zinc-300 bg-white px-3 py-1.5 text-sm font-medium text-zinc-700 hover:bg-zinc-50 disabled:opacity-50 dark:border-zinc-600 dark:bg-zinc-800 dark:text-zinc-300 dark:hover:bg-zinc-700"
             >
               <X size={14} />
               取消
@@ -157,7 +157,7 @@ export function ColorManagement({ onClose }: Props) {
               type="button"
               onClick={onSave}
               disabled={!dirty || saving}
-              className="inline-flex items-center gap-1.5 rounded bg-zinc-900 px-3 py-1.5 text-sm font-medium text-white hover:bg-zinc-800 disabled:opacity-50"
+              className="inline-flex items-center gap-1.5 rounded bg-zinc-900 px-3 py-1.5 text-sm font-medium text-white hover:bg-zinc-800 disabled:opacity-50 dark:bg-zinc-100 dark:text-zinc-900 dark:hover:bg-zinc-200"
             >
               <Save size={14} />
               {saving ? "保存中…" : "保存"}
@@ -185,8 +185,8 @@ function TabButton({
       className={
         "rounded px-3 py-1 transition-colors " +
         (active
-          ? "bg-zinc-900 text-white"
-          : "text-zinc-700 hover:bg-zinc-100")
+          ? "bg-zinc-900 text-white dark:bg-zinc-100 dark:text-zinc-900"
+          : "text-zinc-700 hover:bg-zinc-100 dark:text-zinc-300 dark:hover:bg-zinc-700")
       }
     >
       {children}
@@ -211,7 +211,7 @@ function ColorRow({
       <button
         type="button"
         onClick={() => inputRef.current?.click()}
-        className="h-7 w-12 shrink-0 rounded border border-zinc-200"
+        className="h-7 w-12 shrink-0 rounded border border-zinc-200 dark:border-zinc-600"
         style={{ backgroundColor: color }}
         title="自定义颜色"
       />
@@ -221,15 +221,15 @@ function ColorRow({
         className="hidden"
         onChange={(e) => onCustomize(e.target.value)}
       />
-      <span className="flex-1 truncate font-mono text-sm">{name}</span>
-      <code className="hidden font-mono text-xs text-zinc-400 sm:inline">
+      <span className="flex-1 truncate font-mono text-sm dark:text-zinc-200">{name}</span>
+      <code className="hidden font-mono text-xs text-zinc-400 dark:text-zinc-500 sm:inline">
         {color}
       </code>
       <button
         type="button"
         onClick={onRefresh}
         title="随机刷新"
-        className="rounded p-1.5 text-zinc-500 hover:bg-zinc-100 hover:text-zinc-900"
+        className="rounded p-1.5 text-zinc-500 hover:bg-zinc-100 hover:text-zinc-900 dark:text-zinc-400 dark:hover:bg-zinc-700 dark:hover:text-zinc-200"
       >
         <RotateCw size={14} />
       </button>

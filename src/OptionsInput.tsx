@@ -35,17 +35,17 @@ export function OptionsInput({ options, onChange }: Props) {
   };
 
   return (
-    <div className="flex flex-wrap items-center gap-1.5 rounded border border-zinc-300 bg-white px-2 py-1">
+    <div className="flex flex-wrap items-center gap-1.5 rounded border border-zinc-300 bg-white px-2 py-1 dark:border-zinc-600 dark:bg-zinc-900">
       {options.map((opt, idx) => (
         <span
           key={`${opt}-${idx}`}
-          className="inline-flex items-center gap-1 rounded bg-blue-50 px-1.5 py-0.5 text-xs text-blue-700"
+          className="inline-flex items-center gap-1 rounded bg-blue-50 px-1.5 py-0.5 text-xs text-blue-700 dark:bg-blue-950/40 dark:text-blue-300"
         >
           {opt}
           <button
             type="button"
             onClick={() => handleRemove(idx)}
-            className="text-blue-400 hover:text-blue-700"
+            className="text-blue-400 hover:text-blue-700 dark:text-blue-400 dark:hover:text-blue-200"
           >
             <X size={10} />
           </button>
@@ -58,7 +58,7 @@ export function OptionsInput({ options, onChange }: Props) {
         onKeyDown={handleKeyDown}
         onBlur={handleAdd}
         placeholder={options.length === 0 ? "输入选项后按 Enter" : ""}
-        className="min-w-[80px] flex-1 bg-transparent text-sm outline-none"
+        className="min-w-[80px] flex-1 bg-transparent text-sm outline-none dark:text-zinc-100 dark:placeholder:text-zinc-500"
       />
     </div>
   );

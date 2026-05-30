@@ -39,10 +39,10 @@ export function TemplateList({
       <section className="flex-1 p-6">
         <div className="mx-auto max-w-3xl">
           <div className="mb-4 flex items-center justify-between">
-            <div className="text-xs uppercase tracking-wide text-zinc-500">
+            <div className="text-xs uppercase tracking-wide text-zinc-500 dark:text-zinc-400">
               模板（{templates.length}）
               {tagFilter && (
-                <span className="ml-2 normal-case text-zinc-400">
+                <span className="ml-2 normal-case text-zinc-400 dark:text-zinc-500">
                   · 筛选 tag: {tagFilter}
                 </span>
               )}
@@ -50,7 +50,7 @@ export function TemplateList({
             <button
               type="button"
               onClick={onNew}
-              className="inline-flex items-center gap-1.5 rounded bg-zinc-900 px-3 py-1.5 text-sm font-medium text-white hover:bg-zinc-800"
+              className="inline-flex items-center gap-1.5 rounded bg-zinc-900 px-3 py-1.5 text-sm font-medium text-white hover:bg-zinc-800 dark:bg-zinc-100 dark:text-zinc-900 dark:hover:bg-zinc-200"
             >
               <Plus size={14} />
               新建模板
@@ -58,13 +58,13 @@ export function TemplateList({
           </div>
 
           {!loaded ? (
-            <div className="rounded border border-dashed border-zinc-300 p-6 text-sm text-zinc-500">
+            <div className="rounded border border-dashed border-zinc-300 p-6 text-sm text-zinc-500 dark:border-zinc-600 dark:text-zinc-400">
               loading…
             </div>
           ) : templates.length === 0 ? (
             <EmptyState filtered={!!tagFilter} />
           ) : (
-            <ul className="divide-y divide-zinc-200 overflow-hidden rounded border border-zinc-200 bg-white">
+            <ul className="divide-y divide-zinc-200 overflow-hidden rounded border border-zinc-200 bg-white dark:divide-zinc-700 dark:border-zinc-700 dark:bg-zinc-800">
               {templates.map((t) => (
                 <li
                   key={t.id}
@@ -75,10 +75,10 @@ export function TemplateList({
                     title={t.isPinned ? "取消置顶" : "置顶"}
                     onClick={() => onTogglePin(t.id, !t.isPinned)}
                     className={
-                      "shrink-0 cursor-pointer rounded p-1.5 transition-colors hover:bg-zinc-100 " +
+                      "shrink-0 cursor-pointer rounded p-1.5 transition-colors hover:bg-zinc-100 dark:hover:bg-zinc-700 " +
                       (t.isPinned
                         ? "text-amber-500"
-                        : "text-zinc-300 hover:text-zinc-500")
+                        : "text-zinc-300 hover:text-zinc-500 dark:text-zinc-600 dark:hover:text-zinc-400")
                     }
                   >
                     <Pin
@@ -89,10 +89,10 @@ export function TemplateList({
                   <button
                     type="button"
                     onClick={() => onEdit(t.id)}
-                    className="min-w-0 flex-1 truncate text-left font-medium text-zinc-900 hover:underline"
+                    className="min-w-0 flex-1 truncate text-left font-medium text-zinc-900 hover:underline dark:text-zinc-100"
                   >
                     {t.displayName || (
-                      <span className="italic text-zinc-400">（未命名）</span>
+                      <span className="italic text-zinc-400 dark:text-zinc-500">（未命名）</span>
                     )}
                   </button>
                   {t.tags.length > 0 && (
@@ -111,7 +111,7 @@ export function TemplateList({
                       )}
                     </div>
                   )}
-                  <code className="shrink-0 font-mono text-xs text-zinc-400">
+                  <code className="shrink-0 font-mono text-xs text-zinc-400 dark:text-zinc-500">
                     {t.id.slice(0, 8)}
                   </code>
                   <div className="flex shrink-0 items-center gap-0.5 opacity-40 transition-opacity group-hover:opacity-100">
@@ -175,8 +175,8 @@ function IconButton({
       className={
         "rounded p-1.5 transition-colors " +
         (destructive
-          ? "text-zinc-500 hover:bg-red-50 hover:text-red-600"
-          : "text-zinc-500 hover:bg-zinc-100 hover:text-zinc-900")
+          ? "text-zinc-500 hover:bg-red-50 hover:text-red-600 dark:text-zinc-400 dark:hover:bg-red-950/40 dark:hover:text-red-400"
+          : "text-zinc-500 hover:bg-zinc-100 hover:text-zinc-900 dark:text-zinc-400 dark:hover:bg-zinc-700 dark:hover:text-zinc-200")
       }
     >
       {children}
@@ -187,16 +187,16 @@ function IconButton({
 function EmptyState({ filtered }: { filtered: boolean }) {
   if (filtered) {
     return (
-      <div className="rounded border border-dashed border-zinc-300 p-6 text-sm text-zinc-500">
+      <div className="rounded border border-dashed border-zinc-300 p-6 text-sm text-zinc-500 dark:border-zinc-600 dark:text-zinc-400">
         当前筛选下没有模板。点击左侧"全部模板"清除筛选。
       </div>
     );
   }
   return (
-    <div className="rounded border border-dashed border-zinc-300 p-6 text-sm leading-relaxed text-zinc-600">
-      <div className="mb-2 font-medium text-zinc-700">还没有模板。</div>
+    <div className="rounded border border-dashed border-zinc-300 p-6 text-sm leading-relaxed text-zinc-600 dark:border-zinc-600 dark:text-zinc-400">
+      <div className="mb-2 font-medium text-zinc-700 dark:text-zinc-300">还没有模板。</div>
       <div>
-        点击右上角"新建模板"创建一个，或者按 <kbd className="rounded border border-zinc-300 bg-white px-1.5 py-0.5 text-xs">Ctrl+Alt+Space</kbd> 唤起 palette。
+        点击右上角"新建模板"创建一个，或者按 <kbd className="rounded border border-zinc-300 bg-white px-1.5 py-0.5 text-xs dark:border-zinc-600 dark:bg-zinc-800 dark:text-zinc-300">Ctrl+Alt+Space</kbd> 唤起 palette。
       </div>
     </div>
   );

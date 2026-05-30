@@ -67,13 +67,13 @@ export function VariableList({
   return (
     <div className="space-y-2">
       <div className="flex items-center justify-between">
-        <div className="text-xs font-medium uppercase tracking-wide text-zinc-500">
+        <div className="text-xs font-medium uppercase tracking-wide text-zinc-500 dark:text-zinc-400">
           变量（{variables.length}）
         </div>
         <button
           type="button"
           onClick={handleAdd}
-          className="inline-flex items-center gap-1 rounded border border-zinc-300 bg-white px-2 py-0.5 text-xs font-medium text-zinc-700 hover:bg-zinc-50"
+          className="inline-flex items-center gap-1 rounded border border-zinc-300 bg-white px-2 py-0.5 text-xs font-medium text-zinc-700 hover:bg-zinc-50 dark:border-zinc-600 dark:bg-zinc-800 dark:text-zinc-300 dark:hover:bg-zinc-700"
         >
           <Plus size={12} />
           添加变量
@@ -81,9 +81,9 @@ export function VariableList({
       </div>
 
       {variables.length === 0 ? (
-        <div className="rounded border border-dashed border-zinc-300 p-4 text-center text-sm text-zinc-500">
+        <div className="rounded border border-dashed border-zinc-300 p-4 text-center text-sm text-zinc-500 dark:border-zinc-600 dark:text-zinc-400">
           暂无变量。在 body 中用{" "}
-          <code className="rounded bg-zinc-100 px-1 py-0.5 text-xs">
+          <code className="rounded bg-zinc-100 px-1 py-0.5 text-xs dark:bg-zinc-700 dark:text-zinc-300">
             {"{显示名}"}
           </code>{" "}
           引用变量。

@@ -177,10 +177,10 @@ export function Palette() {
 
   return (
     <div
-      className="flex h-screen flex-col bg-white font-sans"
+      className="flex h-screen flex-col bg-white font-sans dark:bg-zinc-900"
       onKeyDown={handleKeyDown}
     >
-      <div className="h-1.5 shrink-0 bg-zinc-100" data-tauri-drag-region />
+      <div className="h-1.5 shrink-0 bg-zinc-100 dark:bg-zinc-800" data-tauri-drag-region />
 
       {view.type === "search" && (
         <SearchView
@@ -269,8 +269,8 @@ function SearchView({
 }) {
   return (
     <div className="grid flex-1 grid-cols-[40%_60%] overflow-hidden">
-      <div className="flex flex-col border-r border-zinc-200">
-        <div className="flex items-center gap-2 border-b border-zinc-200 px-3 py-2">
+      <div className="flex flex-col border-r border-zinc-200 dark:border-zinc-700">
+        <div className="flex items-center gap-2 border-b border-zinc-200 px-3 py-2 dark:border-zinc-700">
           <Search size={14} className="shrink-0 text-zinc-400" />
           <input
             ref={inputRef}
@@ -279,12 +279,12 @@ function SearchView({
             onChange={(e) => setQuery(e.target.value)}
             placeholder="搜索模板…"
             autoFocus
-            className="flex-1 bg-transparent text-sm outline-none"
+            className="flex-1 bg-transparent text-sm outline-none dark:text-zinc-100 dark:placeholder:text-zinc-500"
           />
         </div>
         <div className="flex-1 overflow-y-auto">
           {results.length === 0 ? (
-            <div className="p-4 text-center text-sm text-zinc-400">
+            <div className="p-4 text-center text-sm text-zinc-400 dark:text-zinc-500">
               {query ? "无匹配" : "无模板"}
             </div>
           ) : (
@@ -297,8 +297,8 @@ function SearchView({
                   className={
                     "flex cursor-pointer items-center gap-2 px-3 py-2 text-sm " +
                     (idx === selectedIdx
-                      ? "bg-zinc-900 text-white"
-                      : "hover:bg-zinc-100")
+                      ? "bg-zinc-900 text-white dark:bg-zinc-100 dark:text-zinc-900"
+                      : "hover:bg-zinc-100 dark:text-zinc-300 dark:hover:bg-zinc-800")
                   }
                 >
                   {t.isPinned ? (
@@ -306,7 +306,7 @@ function SearchView({
                       size={11}
                       className={
                         idx === selectedIdx
-                          ? "shrink-0 text-amber-300"
+                          ? "shrink-0 text-amber-300 dark:text-amber-600"
                           : "shrink-0 text-amber-500"
                       }
                       fill="currentColor"
@@ -325,11 +325,11 @@ function SearchView({
           )}
         </div>
       </div>
-      <div ref={previewRef} className="overflow-y-auto bg-zinc-50">
+      <div ref={previewRef} className="overflow-y-auto bg-zinc-50 dark:bg-zinc-800">
         {previewTemplate ? (
           <Preview template={previewTemplate} />
         ) : (
-          <div className="p-6 text-sm text-zinc-400">（无选中）</div>
+          <div className="p-6 text-sm text-zinc-400 dark:text-zinc-500">（无选中）</div>
         )}
       </div>
     </div>
@@ -339,7 +339,7 @@ function SearchView({
 function Preview({ template }: { template: Template }) {
   return (
     <div className="p-5">
-      <h3 className="mb-2 text-base font-semibold tracking-tight text-zinc-900">
+      <h3 className="mb-2 text-base font-semibold tracking-tight text-zinc-900 dark:text-zinc-100">
         {template.displayName}
       </h3>
       {template.tags.length > 0 && (
@@ -352,7 +352,7 @@ function Preview({ template }: { template: Template }) {
       <BodyWithVariableChips
         body={template.body}
         variables={template.variables}
-        className="rounded border border-zinc-200 bg-white p-3"
+        className="rounded border border-zinc-200 bg-white p-3 dark:border-zinc-600 dark:bg-zinc-900"
       />
     </div>
   );

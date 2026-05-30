@@ -101,10 +101,10 @@ export function HotkeyInput({ value, onChange, disabled }: Props) {
       className={
         "min-w-[16ch] cursor-pointer select-none rounded border px-2.5 py-1 font-mono text-xs transition " +
         (disabled
-          ? "cursor-not-allowed border-zinc-200 bg-zinc-50 text-zinc-400"
+          ? "cursor-not-allowed border-zinc-200 bg-zinc-50 text-zinc-400 dark:border-zinc-700 dark:bg-zinc-800 dark:text-zinc-500"
           : capturing
-            ? "border-amber-400 bg-amber-50 text-amber-900 ring-2 ring-amber-200"
-            : "border-zinc-300 bg-white text-zinc-900 hover:border-zinc-400")
+            ? "border-amber-400 bg-amber-50 text-amber-900 ring-2 ring-amber-200 dark:border-amber-500 dark:bg-amber-950/40 dark:text-amber-200 dark:ring-amber-700"
+            : "border-zinc-300 bg-white text-zinc-900 hover:border-zinc-400 dark:border-zinc-600 dark:bg-zinc-800 dark:text-zinc-100 dark:hover:border-zinc-500")
       }
       title={
         capturing

@@ -447,7 +447,7 @@
 - `exit_app` IPC 是新加的（plan 没列），Slice 7b 也会需要它做"改热键失败需重启"路径（实际上 7b 是即时 re-register 不需要重启，所以可能不会用到）
 - `validate_path_for_import` 检测 Snippet 结构靠几个 marker 文件（templates/、settings.json 等任一）；如果用户的备份目录刚好只有空 templates/ 子目录，也会被认作 ValidSnippet（合理 —— 那个目录确实"是" Snippet folder，只是没模板）
 
-### Slice 7b — 完整设置页（hotkey + autoPaste 整合） 🚧 实现完成，待验证
+### Slice 7b — 完整设置页（hotkey + autoPaste 整合） ✅
 
 实施日期：2026-05-30。前端工作主要是 `HotkeyInput` + `Settings.tsx` 重构；后端是 hotkey 解析 + 事务化 save_settings。
 
@@ -518,6 +518,96 @@
 - 没有"恢复默认"按钮（重置回 Ctrl+Alt+Space）—— 用户可手动输入或清空 settings.json 重启
 - 单元测试只覆盖 parser；re_register_hotkey 涉及 Tauri AppHandle，得集成测试 / 手动验证
 - HotkeyInput 视觉风格在 dark 模式下要重做（amber 在 dark bg 上颜色调整）→ Slice 7c 处理
+
+### Slice 7c — 主题切换（light/dark/system + 全组件 dark 适配） 🚧 实现完成，待验证
+
+实施日期：2026-05-30。
+
+**已落地（前端基础设施）**：
+
+- `src/index.css`：加 `@custom-variant dark (&:where(.dark, .dark *));`（Tailwind v4 class-based dark variant）
+- 新 `src/lib/theme.tsx`：`ThemeApplier` 纯 effect 组件 —— 读 `theme` prop，控制 `document.documentElement.classList.toggle("dark", ...)`。system 模式 attach `matchMedia('(prefers-color-scheme: dark)')` listener + cleanup
+- `src/main.tsx`：
+  - main / palette 窗口：`<SettingsThemeApplier />` bridge 组件读 useSettings().settings?.theme 传递给 ThemeApplier（response to settings-changed）
+  - onboarding 窗口：`<ThemeApplier theme="system" />`（AppState 未 manage，无 settings，默认跟系统）
+
+**已落地（Settings.tsx 主题 section）**：
+
+- 新"主题"卡片（第二个 bordered card，在热键/autoPaste/dataFolder 下方），三选一 radio：浅色 / 深色 / 跟随系统
+- ThemeRadio 组件，切换 staged.theme → ThemeApplier 即时响应（实时预览，即使未保存），取消则 staged 回滚、ThemeApplier 自动跟退
+- 删除了 Slice 7b 遗留的 "其它设置（主题）将在 Slice 7c 中加入" 占位文字
+
+**已落地（全组件 dark 适配）**：
+
+适配了 18 个文件的 dark: variants（index.css + main.tsx + 16 个组件）。设计原则：
+
+| 角色 | Light | Dark |
+|---|---|---|
+| 主背景 | `bg-white` | `dark:bg-zinc-900` |
+| 副背景/卡片 | `bg-zinc-50` | `dark:bg-zinc-800` |
+| 主文本 | `text-zinc-900` | `dark:text-zinc-100` |
+| 副文本 | `text-zinc-500` | `dark:text-zinc-400` |
+| 边框 | `border-zinc-200` | `dark:border-zinc-700` |
+| 输入边框 | `border-zinc-300` | `dark:border-zinc-600` |
+| 输入背景 | `bg-white` | `dark:bg-zinc-900` |
+| Primary 按钮 | `bg-zinc-900 text-white` | `dark:bg-zinc-100 dark:text-zinc-900` |
+| Secondary 按钮 | `border-zinc-300 bg-white text-zinc-700` | `dark:border-zinc-600 dark:bg-zinc-800 dark:text-zinc-300` |
+| Amber banner | `border-amber-200 bg-amber-50 text-amber-800` | `dark:border-amber-700 dark:bg-amber-950/40 dark:text-amber-200` |
+| Red error | `border-red-200 bg-red-50 text-red-700` | `dark:border-red-800 dark:bg-red-950/40 dark:text-red-300` |
+| Toast | `bg-zinc-900 text-white` | `dark:bg-zinc-100 dark:text-zinc-900` |
+| Palette selected | `bg-zinc-900 text-white` | `dark:bg-zinc-100 dark:text-zinc-900` |
+
+- **变量 / tag 自定义色不变**：来自颜色 map 的 hex/oklch 值在 dark 模式下保持原色（per SPEC §6，不做明暗适配——chip / pill 本身有白字保持可读）
+- **OptionsInput 蓝色 chip**：`bg-blue-50 text-blue-700` → `dark:bg-blue-950/40 dark:text-blue-300`
+
+组件清单：
+
+1. `App.tsx`（主 bg + header + nav + NavItem 激活/hover）
+2. `Palette.tsx`（bg + drag region + search + 列表项选中/hover + preview + pin icon）
+3. `TemplateList.tsx`（列表容器 + item + pin + name + id + icon buttons + EmptyState + kbd）
+4. `TemplateEditor.tsx`（amber banner + title + cancel/save buttons + Section card + inputs）
+5. `TemplateFillDialog.tsx`（fill banner + title + buttons + panels + labels + inputs + preview + hint）
+6. `ColorManagement.tsx`（title + close + tab container + TabButton + list + ColorRow + buttons）
+7. `Settings.tsx`（title + close + card + hr + checkbox + data folder + theme radio + error + buttons）
+8. `Onboarding.tsx`（bg + header + OptionCard + PathPicker + status badges + footer）
+9. `VariableEditor.tsx`（card + labels + inputs + delete + error + checkboxes + selects）
+10. `VariableList.tsx`（label + add button + empty state + kbd）
+11. `TagInput.tsx`（container + text input）
+12. `TagPill.tsx`（无改动——custom color + text-white）
+13. `OptionsInput.tsx`（container + chips + delete + text input）
+14. `BodyWithVariableChips.tsx`（text color + empty state）
+15. `ConfirmDialog.tsx`（modal bg + title + message + cancel + confirm/destructive）
+16. `Toast.tsx`（bg/text inverted + check icon）
+17. `HotkeyInput.tsx`（disabled / capturing / normal 三态 dark variants）
+
+**待用户验证**：
+
+⚠️ **首次跑前**：`pnpm tauri dev` 即可（无新 Rust 依赖 / IPC 变动，纯前端）
+
+验收场景：
+
+1. **默认 system 模式**：启动后 → OS dark mode 开 → 应用立即变暗；OS 切回 light → 应用立即变亮
+2. **设置页选"深色"**：主窗口设置页 → 主题 → 选"深色" → 立即所有打开的窗口（main）切到 dark。按热键弹 palette → palette 也是 dark
+3. **选"浅色"**：同上立即切回 light
+4. **dark 下逐窗口验证**：
+   - 主窗口列表（tag pill 颜色不变、pin 图标对比度 OK）
+   - 编辑器（amber banner 仍醒目，文字可读）
+   - 试用对话框（变量色点不变 + 预览区可读）
+   - palette + 搜索 + preview（色块 chip 不变 + 周围文本可读）
+   - 颜色管理页（色块 border 可辨 + tab 激活态清晰）
+   - 设置页（HotkeyInput 三态颜色正确、radio、error banner）
+   - Onboarding（如果触发——清空 bootstrap 测试）
+5. **切换主题瞬时**（< 100ms 体感），无白屏闪烁
+6. **多窗口同步**：main 打开时改主题 → 弹 palette → palette 也是新主题（ThemeApplier 各窗口独立 listen settings-changed）
+7. **重启持久**：选"深色" → 保存 → 重启 app → 仍为 dark
+8. **切换不 dirty**：主题 radio 的改动算入 staged → 保存/取消按钮正确联动
+
+**已知坑 / 留给后续切片**：
+
+- onboarding 窗口始终用 system 主题（首次启动尚无 settings），不可在 onboarding 过程中手动切主题。完成 onboarding 后进入 settings 可调
+- Tailwind v4 的 `@custom-variant` 在极老版本 Chrome/WebView2 下可能 partial parse fail；最低要求 WebView2 Edge 97+（Windows 10 2004+ 自带满足）
+- 部分第三方 input[type=checkbox] / input[type=radio] 的 accent color 在 dark 模式下可能跟 OS 主题冲突——Tailwind 的 `text-zinc-900` 只影响 outline 外围；如反馈样式有问题，可改为 `accent-color: ...` 显式覆盖
+- Toast "bg-zinc-900 → dark:bg-zinc-100" 策略 = 明暗完全反转——始终跟页面底色形成最高对比。如果觉得过亮，可调为 `dark:bg-zinc-200` 或 `dark:bg-white`
 
 ## Phase 3 — 打磨与发布
 

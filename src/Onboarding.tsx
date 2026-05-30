@@ -86,12 +86,12 @@ export function Onboarding() {
   };
 
   return (
-    <div className="flex h-screen flex-col bg-zinc-50">
-      <header className="border-b border-zinc-200 bg-white px-6 py-4">
-        <h1 className="text-lg font-semibold tracking-tight text-zinc-900">
+    <div className="flex h-screen flex-col bg-zinc-50 dark:bg-zinc-900">
+      <header className="border-b border-zinc-200 bg-white px-6 py-4 dark:border-zinc-700 dark:bg-zinc-900">
+        <h1 className="text-lg font-semibold tracking-tight text-zinc-900 dark:text-zinc-100">
           欢迎使用 Snippet
         </h1>
-        <p className="mt-1 text-xs leading-relaxed text-zinc-500">
+        <p className="mt-1 text-xs leading-relaxed text-zinc-500 dark:text-zinc-400">
           选择数据文件夹位置 —— 这里会保存你的模板、设置和颜色配置。
         </p>
       </header>
@@ -140,13 +140,13 @@ export function Onboarding() {
         </div>
 
         {error && (
-          <div className="mt-4 rounded border border-red-200 bg-red-50 px-3 py-2 text-xs text-red-700">
+          <div className="mt-4 rounded border border-red-200 bg-red-50 px-3 py-2 text-xs text-red-700 dark:border-red-800 dark:bg-red-950/40 dark:text-red-300">
             {error}
           </div>
         )}
       </main>
 
-      <footer className="flex items-center justify-end border-t border-zinc-200 bg-white px-6 py-3">
+      <footer className="flex items-center justify-end border-t border-zinc-200 bg-white px-6 py-3 dark:border-zinc-700 dark:bg-zinc-900">
         <button
           type="button"
           onClick={onSubmit}
@@ -190,23 +190,23 @@ function OptionCard({
         }
       }}
       className={
-        "cursor-pointer rounded-lg border bg-white p-3 transition " +
+        "cursor-pointer rounded-lg border bg-white p-3 transition dark:bg-zinc-800 " +
         (selected
-          ? "border-amber-400 ring-2 ring-amber-200"
-          : "border-zinc-200 hover:border-zinc-300")
+          ? "border-amber-400 ring-2 ring-amber-200 dark:border-amber-500 dark:ring-amber-700"
+          : "border-zinc-200 hover:border-zinc-300 dark:border-zinc-700 dark:hover:border-zinc-600")
       }
     >
       <div className="flex items-start gap-3">
         <div
           className={
-            "mt-0.5 shrink-0 " + (selected ? "text-amber-600" : "text-zinc-400")
+            "mt-0.5 shrink-0 " + (selected ? "text-amber-600 dark:text-amber-400" : "text-zinc-400 dark:text-zinc-500")
           }
         >
           {icon}
         </div>
         <div className="min-w-0 flex-1">
-          <div className="text-sm font-medium text-zinc-900">{title}</div>
-          <div className="mt-0.5 break-all text-xs leading-relaxed text-zinc-500">
+          <div className="text-sm font-medium text-zinc-900 dark:text-zinc-100">{title}</div>
+          <div className="mt-0.5 break-all text-xs leading-relaxed text-zinc-500 dark:text-zinc-400">
             {description}
           </div>
         </div>
@@ -238,13 +238,13 @@ function PathPicker({
         <button
           type="button"
           onClick={onPick}
-          className="rounded border border-zinc-300 bg-white px-2.5 py-1 text-xs font-medium text-zinc-700 hover:bg-zinc-50"
+          className="rounded border border-zinc-300 bg-white px-2.5 py-1 text-xs font-medium text-zinc-700 hover:bg-zinc-50 dark:border-zinc-600 dark:bg-zinc-700 dark:text-zinc-300 dark:hover:bg-zinc-600"
         >
           {path ? "重新选择…" : "选择文件夹…"}
         </button>
         {path && (
           <span
-            className="truncate text-xs text-zinc-600"
+            className="truncate text-xs text-zinc-600 dark:text-zinc-400"
             title={path}
           >
             {path}
@@ -252,12 +252,12 @@ function PathPicker({
         )}
       </div>
       {path && status && !eligible && (
-        <div className="rounded bg-red-50 px-2 py-1.5 text-xs text-red-700">
+        <div className="rounded bg-red-50 px-2 py-1.5 text-xs text-red-700 dark:bg-red-950/40 dark:text-red-300">
           {hintIneligible}
         </div>
       )}
       {path && status && eligible && (
-        <div className="rounded bg-emerald-50 px-2 py-1.5 text-xs text-emerald-700">
+        <div className="rounded bg-emerald-50 px-2 py-1.5 text-xs text-emerald-700 dark:bg-emerald-950/40 dark:text-emerald-300">
           {statusFriendly(status)}
         </div>
       )}

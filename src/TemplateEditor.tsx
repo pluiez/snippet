@@ -162,14 +162,14 @@ export function TemplateEditor({
 
   return (
     <div onKeyDown={handleKeyDown}>
-      <div className="flex items-center justify-between border-b border-amber-200 bg-amber-50 px-6 py-1.5 text-xs uppercase tracking-wide text-amber-800">
+      <div className="flex items-center justify-between border-b border-amber-200 bg-amber-50 px-6 py-1.5 text-xs uppercase tracking-wide text-amber-800 dark:border-amber-700 dark:bg-amber-950/40 dark:text-amber-200">
         <span>编辑模式</span>
       </div>
 
       <div className="p-6">
         <div className="mx-auto max-w-3xl">
           <div className="mb-4 flex items-center justify-between">
-            <h2 className="text-base font-semibold tracking-tight">
+            <h2 className="text-base font-semibold tracking-tight dark:text-zinc-100">
               {isNew ? "新建模板" : "编辑模板"}
             </h2>
             <div className="flex items-center gap-2">
@@ -177,7 +177,7 @@ export function TemplateEditor({
                 type="button"
                 onClick={onCancel}
                 disabled={saving}
-                className="inline-flex items-center gap-1.5 rounded border border-zinc-300 bg-white px-3 py-1.5 text-sm font-medium text-zinc-700 hover:bg-zinc-50 disabled:opacity-50"
+                className="inline-flex items-center gap-1.5 rounded border border-zinc-300 bg-white px-3 py-1.5 text-sm font-medium text-zinc-700 hover:bg-zinc-50 disabled:opacity-50 dark:border-zinc-600 dark:bg-zinc-800 dark:text-zinc-300 dark:hover:bg-zinc-700"
               >
                 <X size={14} />
                 取消
@@ -186,7 +186,7 @@ export function TemplateEditor({
                 type="button"
                 onClick={handleSave}
                 disabled={!canSave}
-                className="inline-flex items-center gap-1.5 rounded bg-amber-600 px-3 py-1.5 text-sm font-medium text-white hover:bg-amber-700 disabled:opacity-50"
+                className="inline-flex items-center gap-1.5 rounded bg-amber-600 px-3 py-1.5 text-sm font-medium text-white hover:bg-amber-700 disabled:opacity-50 dark:bg-amber-500 dark:hover:bg-amber-600"
               >
                 <Save size={14} />
                 {saving ? "保存中…" : "保存模板"}
@@ -202,7 +202,7 @@ export function TemplateEditor({
                 onChange={(e) => setDisplayName(e.target.value)}
                 autoFocus
                 placeholder="例如：邮箱"
-                className="w-full rounded border border-zinc-300 px-3 py-2 text-sm focus:border-zinc-500 focus:outline-none"
+                className="w-full rounded border border-zinc-300 px-3 py-2 text-sm focus:border-zinc-500 focus:outline-none dark:border-zinc-600 dark:bg-zinc-900 dark:text-zinc-100 dark:focus:border-zinc-400"
               />
             </Section>
 
@@ -216,7 +216,7 @@ export function TemplateEditor({
                 onChange={handleBodyChange}
                 rows={6}
                 placeholder="模板正文。引用变量用 {显示名}，例如 {Language}。"
-                className="w-full rounded border border-zinc-300 px-3 py-2 font-mono text-sm focus:border-zinc-500 focus:outline-none"
+                className="w-full rounded border border-zinc-300 px-3 py-2 font-mono text-sm focus:border-zinc-500 focus:outline-none dark:border-zinc-600 dark:bg-zinc-900 dark:text-zinc-100 dark:focus:border-zinc-400"
               />
             </Section>
 
@@ -230,7 +230,7 @@ export function TemplateEditor({
               />
             </Section>
 
-            <div className="text-xs text-zinc-500">
+            <div className="text-xs text-zinc-500 dark:text-zinc-400">
               Cmd/Ctrl+Enter 保存 · Esc 取消
             </div>
           </div>
@@ -248,9 +248,9 @@ function Section({
   children: React.ReactNode;
 }) {
   return (
-    <div className="rounded border border-zinc-200 bg-white p-3">
+    <div className="rounded border border-zinc-200 bg-white p-3 dark:border-zinc-700 dark:bg-zinc-800">
       {title && (
-        <div className="mb-1.5 text-xs font-medium uppercase tracking-wide text-zinc-500">
+        <div className="mb-1.5 text-xs font-medium uppercase tracking-wide text-zinc-500 dark:text-zinc-400">
           {title}
         </div>
       )}
