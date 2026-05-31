@@ -1,5 +1,6 @@
 import { Trash2 } from "lucide-react";
-import type { Variable, VariableType } from "./lib/bindings/Variable";
+import type { Variable } from "./lib/bindings/Variable";
+import type { VariableType } from "./lib/bindings/VariableType";
 import { OptionsInput } from "./OptionsInput";
 
 interface Props {

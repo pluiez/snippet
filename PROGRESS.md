@@ -729,9 +729,33 @@
 3. **加 `state::AppState::for_test()` helper**：`#[cfg(test)]` 限定，用 `tempfile::tempdir()` 作 data_folder 构造空 state，让 `color::reconcile_colors` 等依赖 state 的逻辑可单测
 4. **修 `color::random_oklch` round-trip 精度 bug**（F1 决议）：原阈值 `>= 4.5` 在生成器内部满足，但 `format!("{l:.3} {c:.3} {h:.1}")` 截断后 re-parse 出来的 contrast 可能掉到 4.499（如 `oklch(0.583 0.121 327.2)` 实测），违反 SPEC §13 不变量 10 的实际渲染语义（用户实际看到的是 stored 形式）。改为 `>= CONTRAST_TARGET (4.5) + CONTRAST_GUARD (0.05)`，1000-sample sweep 稳过
 
+**Windows `.msi` + `.exe` 打包完成（2026-05-31）**：
+
+`pnpm tauri build` 一次性 produce 两种 installer：
+
+- `src-tauri/target/release/bundle/msi/Snippet_0.1.0_x64_en-US.msi`（WiX）
+- `src-tauri/target/release/bundle/nsis/Snippet_0.1.0_x64-setup.exe`（NSIS）
+
+`tauri.conf.json` 改动：
+
+- `identifier`: `app.snippet` → `com.github.pluiez.snippet`（真实反向域名）
+- 加 `bundle.publisher`: `pluiez`
+- 加 `bundle.homepage`: `https://github.com/pluiez/snippet`
+- 加 `bundle.shortDescription`: `Windows desktop text-template manager on Tauri 2`
+- 加 `bundle.copyright`: `Copyright (c) 2026 pluiez. MIT License.`
+
+注：`paths.rs` 用手写 `APP_SUBDIR = "Snippet"` 解析 dataFolder，**不**依赖 tauri identifier；改 identifier 不影响 `%APPDATA%\Snippet\` 路径（Slice 0.5 已确认）。
+
+**打包过程踩的坑（已修）**：
+
+1. **4 个 ts-rs binding 文件从未 commit 到 git**：`Bootstrap.ts` / `LastUsed.ts` / `VariableColorMap.ts` / `TagColorMap.ts` 在 schema.rs 有 `#[ts(export, export_to = "../src/lib/bindings/")]` 标注，`cargo test` 报 `export_bindings_*` ok，但物理文件从未存在 + 从未 commit。dev mode（Vite ESM + `import type` 完全 erase）不暴露；prod `tsc` 严格模式才报 `Cannot find module`。手写 4 个文件按 ts-rs 输出格式 commit。后续 `cargo test` 重新生成应内容一致。
+2. **TS strict-mode 在 prod build 暴露 dev 期间漏检**：
+   - `src/lib/render.ts`：`(match, guid) => ...` 中 `match` 参数从未使用 → TS6133 unused var → 改 `_match`
+   - `src/VariableEditor.tsx`：`import type { Variable, VariableType } from "./lib/bindings/Variable"` 错误（`VariableType` 是独立文件）→ 拆为两个 import
+   - `src/lib/colors.tsx`：ts-rs 把 `HashMap<String, String>` 输出为 value 是 `string | undefined`，但 `ColorMaps` interface 用 `Record<string, string>`（value required）→ `setVariables(v.map as Record<string, string>)` 加 type assertion（backend `HashMap` 实际永不 null）
+
 **剩余工作流 C 项目**：
 
-- Windows `.msi` 打包（含 `tauri.conf.json` bundle identifier 从占位 `app.snippet` 换为真实反向域名）
 - 代码签名 v1 跳过（unsigned `.msi`，SmartScreen 会有首次启动警告但功能完整）
 - 手动 smoke test：完整安装 → onboarding → 使用流程 → 设置变更 → 卸载 → 重装（数据保留）
 
@@ -750,3 +774,4 @@
 - **D 系列**（"对话框" 措辞、§13 不变量 7 测试稳定性、ARCHITECTURE §6 GC 周期归类）：未处理。
 - **E1**（2026-05-30，Slice 7a 开工时）：原 Slice 7 拆为 7a / 7b / 7c —— 7a Onboarding + dataFolderPath、7b 完整设置页 hotkey + autoPaste 整合、7c 主题切换 + 全组件 dark 适配。原因：原切片范围过大（~2 天），单切完成前无法分段 demo / 回滚；blast radius 集中在三块独立基础设施，拆开后每块可独立 tag、独立验收。Onboarding 引入两阶段启动（Phase A bootstrap → Phase B AppState lazy manage）作为整个 7 系列的结构前置，落地在 lib.rs。TASKS.md 拆分写入推迟到 7c 完成后一次性更新（避免文档/代码不同步窗口）。
 - **F1**（2026-05-31，工作流 C §13 单测开工时）：`color::random_oklch` 阈值从 `>= 4.5` 改为 `>= 4.55`（`CONTRAST_TARGET + CONTRAST_GUARD`）。原因：生成器内部满足 4.5 不等于 stored 字符串形式 round-trip 后仍满足 — `{l:.3}` 截断丢精度，re-parse 可能掉到 4.499，违反 SPEC §13 不变量 10 的实际渲染语义。`invariant_10_random_oklch_meets_contrast_against_white` 测试以 1000 次 sweep + parse 校验 stored 形式 ≥ 4.5，工作流 C 测试编写过程中先以一个真实 case 暴露此 bug 后修复。SPEC §6.2 / §13 不变量 10 措辞未变（仍 ≥ 4.5:1），属实现强化而非 spec 偏移。
+- **F2**（2026-05-31，工作流 C 打包阶段）：`tauri.conf.json` bundle identifier 从占位 `app.snippet` 改为真实反向域名 `com.github.pluiez.snippet`，并补 `publisher` / `homepage` / `shortDescription` / `copyright` 四个 metadata 字段。SPEC / ARCHITECTURE 未涉及 identifier 取值，纯实现配置。注：dataFolder 路径 `%APPDATA%\Snippet\` 由 `paths.rs::APP_SUBDIR` 手写决定，不依赖 tauri identifier；改 identifier 不影响已有用户数据位置。

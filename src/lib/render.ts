@@ -6,7 +6,7 @@ const PLACEHOLDER_RE =
   /\{([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12})\}/g;
 
 export function render(body: string, values: Record<string, string>): string {
-  return body.replace(PLACEHOLDER_RE, (match, guid) => {
+  return body.replace(PLACEHOLDER_RE, (_match, guid) => {
     const value = values[guid];
     return value ?? "";
   });

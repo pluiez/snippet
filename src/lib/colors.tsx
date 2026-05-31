@@ -38,8 +38,11 @@ export function ColorMapsProvider({ children }: { children: ReactNode }) {
         invoke<VariableColorMap>("get_variable_colors"),
         invoke<TagColorMap>("get_tag_colors"),
       ]);
-      setVariables(v.map);
-      setTags(t.map);
+      // ts-rs emits HashMap<String, String> values as `string | undefined`,
+      // but the backend never inserts null entries — assert away the
+      // optionality so consumers can use Record<string, string> cleanly.
+      setVariables(v.map as Record<string, string>);
+      setTags(t.map as Record<string, string>);
     } catch (e) {
       console.error("loadColorMaps failed", e);
     }
