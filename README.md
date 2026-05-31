@@ -1,5 +1,7 @@
 # Snippet
 
+[![test](https://github.com/pluiez/snippet/actions/workflows/test.yml/badge.svg)](https://github.com/pluiez/snippet/actions/workflows/test.yml)
+
 > 中文版本：[`README.zh-CN.md`](README.zh-CN.md)
 
 A Windows-first (macOS later) desktop text-template manager built on Tauri 2. Global hotkey → centered palette → fuzzy-search a template → fill variables (if any) → write to clipboard with optional auto-paste.

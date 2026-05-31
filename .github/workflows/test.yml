@@ -1,0 +1,56 @@
+name: test
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+# Avoid wasting CI minutes if a new push lands while a previous run is still
+# going (e.g. rapid force-push).
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  cargo-test:
+    name: cargo test --lib (ubuntu)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      # Tauri 2.x on Linux pulls in webkit2gtk + librsvg via system libs. The
+      # auto_paste / windows / enigo crates are #[cfg(target_os = "windows")]
+      # so they don't compile here — Linux still produces a runnable lib
+      # binary for `cargo test --lib`.
+      - name: Install Tauri Linux system deps
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y \
+            libwebkit2gtk-4.1-dev \
+            librsvg2-dev \
+            libayatana-appindicator3-dev \
+            libssl-dev \
+            build-essential \
+            curl \
+            file \
+            wget
+
+      - name: Install Rust stable
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Cache cargo registry + build
+        uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: src-tauri
+
+      # tauri::generate_context!() reads tauri.conf.json at compile time and
+      # expects frontendDist ("../dist") to exist. We're not building the
+      # frontend in this job (cargo test --lib doesn't need it), so create
+      # an empty dist/ to keep the macro happy.
+      - name: Create empty frontend dist
+        run: mkdir -p dist
+
+      - name: cargo test --lib
+        working-directory: src-tauri
+        run: cargo test --lib --no-fail-fast

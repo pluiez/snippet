@@ -1,5 +1,7 @@
 # Snippet
 
+[![test](https://github.com/pluiez/snippet/actions/workflows/test.yml/badge.svg)](https://github.com/pluiez/snippet/actions/workflows/test.yml)
+
 > English: [`README.md`](README.md)
 
 Snippet 是一个 Windows-first（macOS later）桌面文本模板管理工具，基于 Tauri 2 构建。全局热键 → 居中 palette → 模糊搜索模板 → 填变量 → 写剪贴板（可选自动粘贴）。
